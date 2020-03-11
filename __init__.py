@@ -60,13 +60,20 @@ class ImportCityJSON(Operator, ImportHelper):
         default=True
     )
 
+    origin_text: BoolProperty(
+        name="Insert origin",
+        description="Insert a text displaying the coordinates of the origin",
+        default=True
+    )
+        
     def execute(self, context):
         """Executes the import process"""
 
         parser = CityJSONParser(self.filepath,
                                 material_type=self.material_type,
                                 reuse_materials=self.reuse_materials,
-                                clear_scene=self.clean_scene)
+                                clear_scene=self.clean_scene,
+                                origin_text=self.origin_text)
 
         return parser.execute()
 
