@@ -215,9 +215,10 @@ def get_collection(collection_name):
 class CityJSONParser:
     """Class that parses a CityJSON file to Blender"""
 
-    def __init__(self, filepath, material_type, reuse_materials=True, clear_scene=True):
+    def __init__(self, filepath, material_type, reuse_materials=True, clear_scene=True, origin_text=True):
         self.filepath = filepath
         self.clear_scene = clear_scene
+        self.origin_text = origin_text
 
         self.data = {}
         self.vertices = []
@@ -274,6 +275,16 @@ class CityJSONParser:
         bpy.context.scene.world['Axis_Origin_X_translation']=-translation[1]
         bpy.context.scene.world['Axis_Origin_Y_translation']=-translation[2]
         bpy.context.scene.world['Axis_Origin_Z_translation']=-translation[3]
+        
+        # Showing origin coord.
+        print("CRS position : X: {x} ; Y: {y} ; Z: {z}".format(x=translation[1],y=translation[2],z=translation[3]))
+
+        if self.origin_text:
+            bpy.ops.object.text_add(location=(0,0,0))
+            originxyz=bpy.context.object
+            originxyz.name = "_OriginXYZ"
+            originxyz.data.name = "X: {x} ; Y: {y} ; Z: {z}".format(x=translation[1],y=translation[2],z=translation[3])
+            originxyz.data.body = originxyz.data.name
 
         # Updating vertices with new translated vertices
         self.vertices = translation[0]
