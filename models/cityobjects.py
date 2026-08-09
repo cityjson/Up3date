@@ -34,7 +34,7 @@ Notes on fidelity to the JSON Schema
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal
 
 from geomprimitives import (
     CompositeSolid,
@@ -52,60 +52,82 @@ from geomtemplates import GeometryInstance
 # cityobjects.schema.json exactly.
 # ---------------------------------------------------------------------------
 
-# Building, BuildingPart, BuildingRoom, BuildingUnit, BuildingStorey,
+# Building, BuildingPart, BuildingRoom, BuildingUnit, BuildingStorey
 # Tunnel, TunnelPart, TunnelHollowSpace, Bridge, BridgePart, BridgeRoom
-GeomSurfaceOrSolid = Union[MultiSurface, CompositeSurface, Solid, CompositeSolid]
+
+GeomSurfaceOrSolid = MultiSurface | CompositeSurface | Solid | CompositeSolid
+
 
 # BuildingInstallation, BuildingConstructiveElement, BuildingFurniture,
 # TunnelInstallation, TunnelConstructiveElement, TunnelFurniture,
 # BridgeInstallation, BridgeConstructiveElement, BridgeFurniture,
 # SolitaryVegetationObject, CityFurniture, OtherConstruction
-GeomAnyPrimitiveOrInstance = Union[
-    MultiPoint,
-    MultiLineString,
-    MultiSurface,
-    CompositeSurface,
-    Solid,
-    CompositeSolid,
-    MultiSolid,
-    GeometryInstance,
-]
+
+GeomAnyPrimitiveOrInstance = (
+    MultiPoint
+    | MultiLineString
+    | MultiSurface
+    | CompositeSurface
+    | Solid
+    | CompositeSolid
+    | MultiSolid
+    | GeometryInstance
+)
+
 
 # Road, Railway, TransportSquare, Waterway
-GeomTransportation = Union[MultiLineString, MultiSurface, CompositeSurface]
+
+GeomTransportation = MultiLineString | MultiSurface | CompositeSurface
+
 
 # WaterBody
-GeomWaterBody = Union[MultiLineString, MultiSurface, CompositeSurface, Solid, CompositeSolid]
+
+GeomWaterBody = (
+    MultiLineString | MultiSurface | CompositeSurface | Solid | CompositeSolid
+)
+
 
 # PlantCover
-GeomPlantCover = Union[MultiSurface, CompositeSurface, Solid, CompositeSolid, MultiSolid]
+
+GeomPlantCover = MultiSurface | CompositeSurface | Solid | CompositeSolid | MultiSolid
 
 # LandUse
-GeomLandUse = Union[MultiSurface, CompositeSurface]
+
+GeomLandUse = MultiSurface | CompositeSurface
+
 
 # CityObjectGroup (no GeometryInstance)
-GeomCityObjectGroup = Union[
-    MultiPoint, MultiLineString, MultiSurface, CompositeSurface, Solid, CompositeSolid, MultiSolid
-]
+
+GeomCityObjectGroup = (
+    MultiPoint
+    | MultiLineString
+    | MultiSurface
+    | CompositeSurface
+    | Solid
+    | CompositeSolid
+    | MultiSolid
+)
+
 
 # GenericCityObject
-GeomGeneric = Union[
-    MultiPoint,
-    MultiLineString,
-    Solid,
-    MultiSolid,
-    CompositeSolid,
-    MultiSurface,
-    CompositeSurface,
-    GeometryInstance,
-]
+
+GeomGeneric = (
+    MultiPoint
+    | MultiLineString
+    | Solid
+    | MultiSolid
+    | CompositeSolid
+    | MultiSurface
+    | CompositeSurface
+    | GeometryInstance
+)
 
 
 @dataclass
 class Address:
     """Item of the `address` array (Building, BuildingUnit, Bridge, BridgePart)."""
 
-    location: Optional[MultiPoint] = None
+    location: MultiPoint | None = None
 
 
 # ---------------------------------------------------------------------------
@@ -117,10 +139,10 @@ class Address:
 class _AbstractCityObject:
     """Common properties shared by every CityObject (schema: _AbstractCityObject)."""
 
-    attributes: Dict[str, Any] = field(default_factory=dict)
-    parents: List[str] = field(default_factory=list)          # IDs of the parents
-    children: List[str] = field(default_factory=list)         # IDs of children
-    geographicalExtent: Optional[List[float]] = None          # exactly 6 numbers if set
+    attributes: dict[str, Any] = field(default_factory=dict)
+    parents: list[str] = field(default_factory=list)  # IDs of the parents
+    children: list[str] = field(default_factory=list)  # IDs of children
+    geographicalExtent: list[float] | None = None  # exactly 6 numbers if set
 
 
 @dataclass
@@ -139,8 +161,8 @@ class ExtensionObject:
 class _AbstractBuilding(_AbstractCityObject):
     """Shared by Building / BuildingPart."""
 
-    address: List[Address] = field(default_factory=list)
-    geometry: List[GeomSurfaceOrSolid] = field(default_factory=list)
+    address: list[Address] = field(default_factory=list)
+    geometry: list[GeomSurfaceOrSolid] = field(default_factory=list)
 
 
 @dataclass
@@ -157,43 +179,43 @@ class BuildingPart(_AbstractBuilding):
 @dataclass
 class BuildingInstallation(_AbstractCityObject):
     type: Literal["BuildingInstallation"] = "BuildingInstallation"
-    geometry: List[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
+    geometry: list[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
     # parents required by schema
 
 
 @dataclass
 class BuildingConstructiveElement(_AbstractCityObject):
     type: Literal["BuildingConstructiveElement"] = "BuildingConstructiveElement"
-    geometry: List[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
+    geometry: list[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
     # parents required by schema
 
 
 @dataclass
 class BuildingFurniture(_AbstractCityObject):
     type: Literal["BuildingFurniture"] = "BuildingFurniture"
-    geometry: List[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
+    geometry: list[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
     # parents required by schema
 
 
 @dataclass
 class BuildingRoom(_AbstractCityObject):
     type: Literal["BuildingRoom"] = "BuildingRoom"
-    geometry: List[GeomSurfaceOrSolid] = field(default_factory=list)
+    geometry: list[GeomSurfaceOrSolid] = field(default_factory=list)
     # parents required by schema
 
 
 @dataclass
 class BuildingUnit(_AbstractCityObject):
     type: Literal["BuildingUnit"] = "BuildingUnit"
-    address: List[Address] = field(default_factory=list)
-    geometry: List[GeomSurfaceOrSolid] = field(default_factory=list)
+    address: list[Address] = field(default_factory=list)
+    geometry: list[GeomSurfaceOrSolid] = field(default_factory=list)
     # parents required by schema
 
 
 @dataclass
 class BuildingStorey(_AbstractCityObject):
     type: Literal["BuildingStorey"] = "BuildingStorey"
-    geometry: List[GeomSurfaceOrSolid] = field(default_factory=list)
+    geometry: list[GeomSurfaceOrSolid] = field(default_factory=list)
     # parents required by schema
 
 
@@ -205,41 +227,41 @@ class BuildingStorey(_AbstractCityObject):
 @dataclass
 class Tunnel(_AbstractCityObject):
     type: Literal["Tunnel"] = "Tunnel"
-    geometry: List[GeomSurfaceOrSolid] = field(default_factory=list)
+    geometry: list[GeomSurfaceOrSolid] = field(default_factory=list)
 
 
 @dataclass
 class TunnelPart(_AbstractCityObject):
     type: Literal["TunnelPart"] = "TunnelPart"
-    geometry: List[GeomSurfaceOrSolid] = field(default_factory=list)
+    geometry: list[GeomSurfaceOrSolid] = field(default_factory=list)
     # parents required by schema
 
 
 @dataclass
 class TunnelInstallation(_AbstractCityObject):
     type: Literal["TunnelInstallation"] = "TunnelInstallation"
-    geometry: List[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
+    geometry: list[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
     # parents required by schema
 
 
 @dataclass
 class TunnelConstructiveElement(_AbstractCityObject):
     type: Literal["TunnelConstructiveElement"] = "TunnelConstructiveElement"
-    geometry: List[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
+    geometry: list[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
     # parents required by schema
 
 
 @dataclass
 class TunnelHollowSpace(_AbstractCityObject):
     type: Literal["TunnelHollowSpace"] = "TunnelHollowSpace"
-    geometry: List[GeomSurfaceOrSolid] = field(default_factory=list)
+    geometry: list[GeomSurfaceOrSolid] = field(default_factory=list)
     # parents required by schema
 
 
 @dataclass
 class TunnelFurniture(_AbstractCityObject):
     type: Literal["TunnelFurniture"] = "TunnelFurniture"
-    geometry: List[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
+    geometry: list[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
     # parents required by schema
 
 
@@ -251,43 +273,43 @@ class TunnelFurniture(_AbstractCityObject):
 @dataclass
 class Bridge(_AbstractCityObject):
     type: Literal["Bridge"] = "Bridge"
-    address: List[Address] = field(default_factory=list)
-    geometry: List[GeomSurfaceOrSolid] = field(default_factory=list)
+    address: list[Address] = field(default_factory=list)
+    geometry: list[GeomSurfaceOrSolid] = field(default_factory=list)
 
 
 @dataclass
 class BridgePart(_AbstractCityObject):
     type: Literal["BridgePart"] = "BridgePart"
-    address: List[Address] = field(default_factory=list)
-    geometry: List[GeomSurfaceOrSolid] = field(default_factory=list)
+    address: list[Address] = field(default_factory=list)
+    geometry: list[GeomSurfaceOrSolid] = field(default_factory=list)
     # parents required by schema
 
 
 @dataclass
 class BridgeInstallation(_AbstractCityObject):
     type: Literal["BridgeInstallation"] = "BridgeInstallation"
-    geometry: List[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
+    geometry: list[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
     # parents required by schema
 
 
 @dataclass
 class BridgeConstructiveElement(_AbstractCityObject):
     type: Literal["BridgeConstructiveElement"] = "BridgeConstructiveElement"
-    geometry: List[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
+    geometry: list[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
     # parents required by schema
 
 
 @dataclass
 class BridgeRoom(_AbstractCityObject):
     type: Literal["BridgeRoom"] = "BridgeRoom"
-    geometry: List[GeomSurfaceOrSolid] = field(default_factory=list)
+    geometry: list[GeomSurfaceOrSolid] = field(default_factory=list)
     # parents required by schema
 
 
 @dataclass
 class BridgeFurniture(_AbstractCityObject):
     type: Literal["BridgeFurniture"] = "BridgeFurniture"
-    geometry: List[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
+    geometry: list[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
     # parents required by schema
 
 
@@ -298,7 +320,7 @@ class BridgeFurniture(_AbstractCityObject):
 
 @dataclass
 class _AbstractTransportationComplex(_AbstractCityObject):
-    geometry: List[GeomTransportation] = field(default_factory=list)
+    geometry: list[GeomTransportation] = field(default_factory=list)
 
 
 @dataclass
@@ -329,100 +351,101 @@ class Waterway(_AbstractTransportationComplex):
 @dataclass
 class TINRelief(_AbstractCityObject):
     type: Literal["TINRelief"] = "TINRelief"
-    geometry: List[CompositeSurface] = field(default_factory=list)  # CompositeSurface only
+    geometry: list[CompositeSurface] = field(
+        default_factory=list
+    )  # CompositeSurface only
 
 
 @dataclass
 class WaterBody(_AbstractCityObject):
     type: Literal["WaterBody"] = "WaterBody"
-    geometry: List[GeomWaterBody] = field(default_factory=list)
+    geometry: list[GeomWaterBody] = field(default_factory=list)
 
 
 @dataclass
 class PlantCover(_AbstractCityObject):
     type: Literal["PlantCover"] = "PlantCover"
-    geometry: List[GeomPlantCover] = field(default_factory=list)
+    geometry: list[GeomPlantCover] = field(default_factory=list)
 
 
 @dataclass
 class SolitaryVegetationObject(_AbstractCityObject):
     type: Literal["SolitaryVegetationObject"] = "SolitaryVegetationObject"
-    geometry: List[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
+    geometry: list[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
 
 
 @dataclass
 class LandUse(_AbstractCityObject):
     type: Literal["LandUse"] = "LandUse"
-    geometry: List[GeomLandUse] = field(default_factory=list)
+    geometry: list[GeomLandUse] = field(default_factory=list)
 
 
 @dataclass
 class CityFurniture(_AbstractCityObject):
     type: Literal["CityFurniture"] = "CityFurniture"
-    geometry: List[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
+    geometry: list[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
 
 
 @dataclass
 class OtherConstruction(_AbstractCityObject):
     type: Literal["OtherConstruction"] = "OtherConstruction"
-    geometry: List[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
+    geometry: list[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
 
 
 @dataclass
 class CityObjectGroup(_AbstractCityObject):
     type: Literal["CityObjectGroup"] = "CityObjectGroup"
-    children_roles: List[Optional[str]] = field(default_factory=list)
-    geometry: List[GeomCityObjectGroup] = field(default_factory=list)
+    children_roles: list[str | None] = field(default_factory=list)
+    geometry: list[GeomCityObjectGroup] = field(default_factory=list)
     # children required by schema
 
 
 @dataclass
 class GenericCityObject(_AbstractCityObject):
     type: Literal["GenericCityObject"] = "GenericCityObject"
-    geometry: List[GeomGeneric] = field(default_factory=list)
+    geometry: list[GeomGeneric] = field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
 # Convenience: union of every concrete CityObject type + type-string lookup
 # ---------------------------------------------------------------------------
 
-CityObject = Union[
-    Building,
-    BuildingPart,
-    BuildingInstallation,
-    BuildingConstructiveElement,
-    BuildingFurniture,
-    BuildingRoom,
-    BuildingUnit,
-    BuildingStorey,
-    Tunnel,
-    TunnelPart,
-    TunnelInstallation,
-    TunnelConstructiveElement,
-    TunnelHollowSpace,
-    TunnelFurniture,
-    Bridge,
-    BridgePart,
-    BridgeInstallation,
-    BridgeConstructiveElement,
-    BridgeRoom,
-    BridgeFurniture,
-    Road,
-    Railway,
-    TransportSquare,
-    Waterway,
-    TINRelief,
-    WaterBody,
-    PlantCover,
-    SolitaryVegetationObject,
-    LandUse,
-    CityFurniture,
-    OtherConstruction,
-    CityObjectGroup,
-    GenericCityObject,
-]
-
-CITYOBJECT_TYPES: Dict[str, type] = {
+CityObject = (
+    Building
+    | BuildingPart
+    | BuildingInstallation
+    | BuildingConstructiveElement
+    | BuildingFurniture
+    | BuildingRoom
+    | BuildingUnit
+    | BuildingStorey
+    | Tunnel
+    | TunnelPart
+    | TunnelInstallation
+    | TunnelConstructiveElement
+    | TunnelHollowSpace
+    | TunnelFurniture
+    | Bridge
+    | BridgePart
+    | BridgeInstallation
+    | BridgeConstructiveElement
+    | BridgeRoom
+    | BridgeFurniture
+    | Road
+    | Railway
+    | TransportSquare
+    | Waterway
+    | TINRelief
+    | WaterBody
+    | PlantCover
+    | SolitaryVegetationObject
+    | LandUse
+    | CityFurniture
+    | OtherConstruction
+    | CityObjectGroup
+    | GenericCityObject
+)
+CITYOBJECT_TYPES: dict[str, type] = {
     "Building": Building,
     "BuildingPart": BuildingPart,
     "BuildingInstallation": BuildingInstallation,

@@ -7,3 +7,12 @@ requires-python = ">=3.13"
 dependencies = [
     "bpy>=5.2.0",
 ]
+
+[dependency-groups]
+dev = [
+    "ruff>=0.16.2",
+]
+
+
+[tool.ruff.lint]
+ignore = ["N999"]

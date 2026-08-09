@@ -1,15 +1,12 @@
 """Main module of the CityJSON Blender addon"""
 
-import json
-import time
-
 import bpy
-from bpy.props import BoolProperty, EnumProperty, StringProperty, IntProperty
+from bpy.props import BoolProperty, EnumProperty, IntProperty, StringProperty
 from bpy.types import Operator
 from bpy_extras.io_utils import ExportHelper, ImportHelper
 
-from .core.objects import CityJSONParser, CityJSONExporter
-from .core import ui, prop, operator
+from .core import operator, prop, ui
+from .core.objects import CityJSONExporter, CityJSONParser
 
 bl_info = {
     "name": "Up3date",
@@ -23,8 +20,10 @@ bl_info = {
     "category": "Import-Export",
 }
 
+
 class ImportCityJSON(Operator, ImportHelper):
     "Load a CityJSON file"
+
     bl_idname = "cityjson.import_file"  # important since its how bpy.ops.import_test.some_data is constructed
     bl_label = "Import CityJSON"
 
@@ -33,46 +32,55 @@ class ImportCityJSON(Operator, ImportHelper):
 
     filter_glob: StringProperty(
         default="*.json",
-        options={'HIDDEN'},
+        options={"HIDDEN"},
         maxlen=255,  # Max internal buffer length, longer would be clamped.
     )
 
     material_type: EnumProperty(
         name="Materials' type",
-        items=(('SURFACES', "Surfaces",
-                "Creates materials based on semantic surface types"),
-               ('CITY_OBJECTS', "City Objects",
-                "Creates materials based on the type of city object")),
-        description=(
-            "Create materials based on city object or semantic"
-            " surfaces"
-        )
+        items=(
+            (
+                "SURFACES",
+                "Surfaces",
+                "Creates materials based on semantic surface types",
+            ),
+            (
+                "CITY_OBJECTS",
+                "City Objects",
+                "Creates materials based on the type of city object",
+            ),
+        ),
+        description=("Create materials based on city object or semantic surfaces"),
     )
 
     reuse_materials: BoolProperty(
         name="Reuse materials",
         description="Use common materials according to surface type",
-        default=True
+        default=True,
     )
 
     clean_scene: BoolProperty(
         name="Clean scene",
         description="Remove existing objects from the scene before importing",
-        default=True
+        default=True,
     )
 
     def execute(self, context):
         """Executes the import process"""
 
-        parser = CityJSONParser(self.filepath,
-                                material_type=self.material_type,
-                                reuse_materials=self.reuse_materials,
-                                clear_scene=self.clean_scene)
+        parser = CityJSONParser(
+            self.filepath,
+            material_type=self.material_type,
+            reuse_materials=self.reuse_materials,
+            clear_scene=self.clean_scene,
+        )
 
         return parser.execute()
 
+
 class ExportCityJSON(Operator, ExportHelper):
     "Export scene as a CityJSON file"
+
     bl_idname = "cityjson.export_file"
     bl_label = "Export CityJSON"
 
@@ -81,7 +89,7 @@ class ExportCityJSON(Operator, ExportHelper):
 
     filter_glob: StringProperty(
         default="*.json",
-        options={'HIDDEN'},
+        options={"HIDDEN"},
         maxlen=255,  # Max internal buffer length, longer would be clamped.
     )
 
@@ -113,40 +121,49 @@ class ExportCityJSON(Operator, ExportHelper):
     #             "Export only LoD 2"),
     #             ),
     #     description=(
-    #         "Select which LoD should be exported"            
+    #         "Select which LoD should be exported"
     #     )
     # )
     def execute(self, context):
-        
-        exporter = CityJSONExporter(self.filepath,
-                                    check_for_duplicates=self.check_for_duplicates,
-                                    precision=self.precision)
+
+        exporter = CityJSONExporter(
+            self.filepath,
+            check_for_duplicates=self.check_for_duplicates,
+            precision=self.precision,
+        )
         return exporter.execute()
+
 
 classes = (
     ImportCityJSON,
     ExportCityJSON,
-    prop.UP3DATE_CityjsonfyProperties,
-    operator.UP3DATECityjsonfy,
-    ui.UP3DATE_PT_gui
+    prop.Up3dateCityJSONfyProperties,
+    operator.Up3dateCityJsonfy,
+    ui.Up3datePTgui,
 )
+
 
 def menu_func_export(self, context):
     """Defines the menu item for CityJSON import"""
     self.layout.operator(ExportCityJSON.bl_idname, text="CityJSON (.json)")
 
+
 def menu_func_import(self, context):
     """Defines the menu item for CityJSON export"""
     self.layout.operator(ImportCityJSON.bl_idname, text="CityJSON (.json)")
+
 
 def register():
     """Registers the classes and functions of the addon"""
 
     for cls in classes:
         bpy.utils.register_class(cls)
-    bpy.types.Scene.cityjsonfy_properties = bpy.props.PointerProperty(type=prop.UP3DATE_CityjsonfyProperties)
+    bpy.types.Scene.cityjsonfy_properties = bpy.props.PointerProperty(
+        type=prop.Up3dateCityJSONfyProperties
+    )
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)
+
 
 def unregister():
     """Unregisters the classes and functions of the addon"""
@@ -158,6 +175,7 @@ def unregister():
         bpy.utils.unregister_class(cls)
 
     del bpy.types.Scene.cityjsonfy_properties
+
 
 if __name__ == "__main__":
     register()

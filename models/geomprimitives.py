@@ -27,7 +27,7 @@ support `material`/`texture`; MultiPoint and MultiLineString support only
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Literal, Optional, Union
+from typing import Any, Literal
 
 # ---------------------------------------------------------------------------
 # Shared building blocks
@@ -35,37 +35,26 @@ from typing import Any, Dict, List, Literal, Optional, Union
 
 # schema: "Lods" enum
 Lod = Literal[
-    "0", "1", "2", "3",
-    "0.0", "0.1", "0.2", "0.3",
-    "1.0", "1.1", "1.2", "1.3",
-    "2.0", "2.1", "2.2", "2.3",
-    "3.0", "3.1", "3.2", "3.3",
-]
-
-# schema: "Semantics" -- known surface-type consts, or an extension string
-# matching the pattern (+)\w+
-SemanticSurfaceType = Union[
-    Literal[
-        "RoofSurface",
-        "GroundSurface",
-        "WallSurface",
-        "ClosureSurface",
-        "OuterCeilingSurface",
-        "OuterFloorSurface",
-        "Window",
-        "Door",
-        "InteriorWallSurface",
-        "CeilingSurface",
-        "FloorSurface",
-        "WaterSurface",
-        "WaterGroundSurface",
-        "WaterClosureSurface",
-        "TrafficArea",
-        "AuxiliaryTrafficArea",
-        "TransportationHole",
-        "TransportationMarking",
-    ],
-    str,  # extension types, e.g. "+SolarPanel"
+    "0",
+    "1",
+    "2",
+    "3",
+    "0.0",
+    "0.1",
+    "0.2",
+    "0.3",
+    "1.0",
+    "1.1",
+    "1.2",
+    "1.3",
+    "2.0",
+    "2.1",
+    "2.2",
+    "2.3",
+    "3.0",
+    "3.1",
+    "3.2",
+    "3.3",
 ]
 
 
@@ -77,8 +66,8 @@ class Semantics:
     `extra`.
     """
 
-    type: SemanticSurfaceType
-    extra: Dict[str, Any] = field(default_factory=dict)
+    type: str
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
 # Nested int-or-null arrays used for semantics.values / material.values /
@@ -90,7 +79,7 @@ NestedIntOrNull = Any
 class GeometrySemantics:
     """schema: `semantics` object shared by all seven primitives."""
 
-    surfaces: List[Semantics] = field(default_factory=list)
+    surfaces: list[Semantics] = field(default_factory=list)
     values: NestedIntOrNull = None  # required by schema, may be null
 
 
@@ -101,12 +90,12 @@ class MaterialValue:
     Exactly one of `value` / `values` should be set (schema `oneOf`).
     """
 
-    value: Optional[int] = None
+    value: int | None = None
     values: NestedIntOrNull = None
 
 
 # schema: "material" -- object keyed by theme name -> MaterialValue
-Material = Dict[str, MaterialValue]
+Material = dict[str, MaterialValue]
 
 
 @dataclass
@@ -117,18 +106,18 @@ class TextureTheme:
 
 
 # schema: "texture" -- object keyed by theme name -> TextureTheme
-Texture = Dict[str, TextureTheme]
+Texture = dict[str, TextureTheme]
 
 
 # ---------------------------------------------------------------------------
 # Boundary type aliases (exact nesting per primitive)
 # ---------------------------------------------------------------------------
 
-MultiPointBoundaries = List[int]
-MultiLineStringBoundaries = List[List[int]]
-SurfaceBoundaries = List[List[List[int]]]          # MultiSurface / CompositeSurface
-SolidBoundaries = List[List[List[List[int]]]]      # Solid
-MultiSolidBoundaries = List[List[List[List[List[int]]]]]  # CompositeSolid / MultiSolid
+MultiPointBoundaries = list[int]
+MultiLineStringBoundaries = list[list[int]]
+SurfaceBoundaries = list[list[list[int]]]  # MultiSurface / CompositeSurface
+SolidBoundaries = list[list[list[list[int]]]]  # Solid
+MultiSolidBoundaries = list[list[list[list[list[int]]]]]  # CompositeSolid / MultiSolid
 
 
 # ---------------------------------------------------------------------------
@@ -141,7 +130,7 @@ class MultiPoint:
     lod: Lod
     boundaries: MultiPointBoundaries = field(default_factory=list)
     type: Literal["MultiPoint"] = "MultiPoint"
-    semantics: Optional[GeometrySemantics] = None
+    semantics: GeometrySemantics | None = None
     # no material / texture (additionalProperties: false in schema)
 
 
@@ -150,7 +139,7 @@ class MultiLineString:
     lod: Lod
     boundaries: MultiLineStringBoundaries = field(default_factory=list)
     type: Literal["MultiLineString"] = "MultiLineString"
-    semantics: Optional[GeometrySemantics] = None
+    semantics: GeometrySemantics | None = None
     # no material / texture (additionalProperties: false in schema)
 
 
@@ -159,9 +148,9 @@ class MultiSurface:
     lod: Lod
     boundaries: SurfaceBoundaries = field(default_factory=list)
     type: Literal["MultiSurface"] = "MultiSurface"
-    semantics: Optional[GeometrySemantics] = None
-    material: Optional[Material] = None
-    texture: Optional[Texture] = None
+    semantics: GeometrySemantics | None = None
+    material: Material | None = None
+    texture: Texture | None = None
 
 
 @dataclass
@@ -169,9 +158,9 @@ class CompositeSurface:
     lod: Lod
     boundaries: SurfaceBoundaries = field(default_factory=list)
     type: Literal["CompositeSurface"] = "CompositeSurface"
-    semantics: Optional[GeometrySemantics] = None
-    material: Optional[Material] = None
-    texture: Optional[Texture] = None
+    semantics: GeometrySemantics | None = None
+    material: Material | None = None
+    texture: Texture | None = None
 
 
 @dataclass
@@ -179,9 +168,9 @@ class Solid:
     lod: Lod
     boundaries: SolidBoundaries = field(default_factory=list)
     type: Literal["Solid"] = "Solid"
-    semantics: Optional[GeometrySemantics] = None
-    material: Optional[Material] = None
-    texture: Optional[Texture] = None
+    semantics: GeometrySemantics | None = None
+    material: Material | None = None
+    texture: Texture | None = None
 
 
 @dataclass
@@ -189,9 +178,9 @@ class CompositeSolid:
     lod: Lod
     boundaries: MultiSolidBoundaries = field(default_factory=list)
     type: Literal["CompositeSolid"] = "CompositeSolid"
-    semantics: Optional[GeometrySemantics] = None
-    material: Optional[Material] = None
-    texture: Optional[Texture] = None
+    semantics: GeometrySemantics | None = None
+    material: Material | None = None
+    texture: Texture | None = None
 
 
 @dataclass
@@ -199,25 +188,25 @@ class MultiSolid:
     lod: Lod
     boundaries: MultiSolidBoundaries = field(default_factory=list)
     type: Literal["MultiSolid"] = "MultiSolid"
-    semantics: Optional[GeometrySemantics] = None
-    material: Optional[Material] = None
-    texture: Optional[Texture] = None
+    semantics: GeometrySemantics | None = None
+    material: Material | None = None
+    texture: Texture | None = None
 
 
 # Union of every primitive defined in geomprimitives.schema.json.
 # (GeometryInstance from geomtemplates.schema.json is intentionally not
 # included here -- see cityobjects.py.)
-GeometryPrimitive = Union[
-    MultiPoint,
-    MultiLineString,
-    MultiSurface,
-    CompositeSurface,
-    Solid,
-    CompositeSolid,
-    MultiSolid,
-]
+GeometryPrimitive = (
+    MultiPoint
+    | MultiLineString
+    | MultiSurface
+    | CompositeSurface
+    | Solid
+    | CompositeSolid
+    | MultiSolid
+)
 
-GEOMPRIMITIVE_TYPES: Dict[str, type] = {
+GEOMPRIMITIVE_TYPES: dict[str, type] = {
     "MultiPoint": MultiPoint,
     "MultiLineString": MultiLineString,
     "MultiSurface": MultiSurface,
