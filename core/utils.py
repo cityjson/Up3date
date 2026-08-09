@@ -25,7 +25,6 @@ def remove_scene_objects():
 
 
 def clean_list(values):
-    
     """Creates a list of non list in case lists nested in lists exist"""
 
     while isinstance(values[0], list):
