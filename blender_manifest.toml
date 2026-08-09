@@ -1,0 +1,19 @@
+schema_version = "1.0.0"
+
+id = "up3date"
+version = "1.0.0"
+name = "Up3date"
+tagline = "Visualize, edit and export 3D City Models encoded in CityJSON format"
+maintainer = "Konstantinos Mastorakis"
+type = "add-on"
+
+blender_version_min = "5.2.0"
+
+license = [
+  "SPDX:GPL-3.0-or-later",
+]
+
+tags = ["Import-Export"]
+
+[permissions]
+files = "Import and export CityJSON files from/to disk"

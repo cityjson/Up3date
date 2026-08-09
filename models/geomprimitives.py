@@ -69,6 +69,15 @@ class Semantics:
     type: str
     extra: dict[str, Any] = field(default_factory=dict)
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "Semantics":
+        type_ = data["type"]
+        extra = {k: v for k, v in data.items() if k != "type"}
+        return cls(type=type_, extra=extra)
+
+    def to_dict(self) -> dict:
+        return {"type": self.type, **self.extra}
+
 
 # Nested int-or-null arrays used for semantics.values / material.values /
 # texture.values -- depth varies by primitive, so kept generic.
@@ -82,6 +91,19 @@ class GeometrySemantics:
     surfaces: list[Semantics] = field(default_factory=list)
     values: NestedIntOrNull = None  # required by schema, may be null
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "GeometrySemantics":
+        return cls(
+            surfaces=[Semantics.from_dict(s) for s in data.get("surfaces", [])],
+            values=data.get("values"),
+        )
+
+    def to_dict(self) -> dict:
+        return {
+            "surfaces": [s.to_dict() for s in self.surfaces],
+            "values": self.values,
+        }
+
 
 @dataclass
 class MaterialValue:
@@ -93,6 +115,15 @@ class MaterialValue:
     value: int | None = None
     values: NestedIntOrNull = None
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "MaterialValue":
+        return cls(value=data.get("value"), values=data.get("values"))
+
+    def to_dict(self) -> dict:
+        if self.value is not None:
+            return {"value": self.value}
+        return {"values": self.values}
+
 
 # schema: "material" -- object keyed by theme name -> MaterialValue
 Material = dict[str, MaterialValue]
@@ -103,6 +134,13 @@ class TextureTheme:
     """schema: value of each key in the `texture` object."""
 
     values: NestedIntOrNull = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "TextureTheme":
+        return cls(values=data.get("values"))
+
+    def to_dict(self) -> dict:
+        return {"values": self.values}
 
 
 # schema: "texture" -- object keyed by theme name -> TextureTheme
@@ -121,6 +159,39 @@ MultiSolidBoundaries = list[list[list[list[list[int]]]]]  # CompositeSolid / Mul
 
 
 # ---------------------------------------------------------------------------
+# Shared serialization helpers
+# ---------------------------------------------------------------------------
+
+def _geom_from_dict(cls, data: dict, *, has_appearance: bool) -> Any:
+    """Shared from_dict logic for all geometry primitives."""
+    obj = cls(lod=data["lod"], boundaries=data.get("boundaries", []))
+    if "semantics" in data:
+        obj.semantics = GeometrySemantics.from_dict(data["semantics"])
+    if has_appearance:
+        if "material" in data:
+            obj.material = {k: MaterialValue.from_dict(v) for k, v in data["material"].items()}
+        if "texture" in data:
+            obj.texture = {k: TextureTheme.from_dict(v) for k, v in data["texture"].items()}
+    return obj
+
+
+def _geom_to_dict(obj: Any) -> dict:
+    """Shared to_dict logic for all geometry primitives."""
+    d: dict[str, Any] = {
+        "type": obj.type,
+        "lod": obj.lod,
+        "boundaries": obj.boundaries,
+    }
+    if obj.semantics is not None:
+        d["semantics"] = obj.semantics.to_dict()
+    if hasattr(obj, "material") and obj.material is not None:
+        d["material"] = {k: v.to_dict() for k, v in obj.material.items()}
+    if hasattr(obj, "texture") and obj.texture is not None:
+        d["texture"] = {k: v.to_dict() for k, v in obj.texture.items()}
+    return d
+
+
+# ---------------------------------------------------------------------------
 # Primitives
 # ---------------------------------------------------------------------------
 
@@ -133,6 +204,13 @@ class MultiPoint:
     semantics: GeometrySemantics | None = None
     # no material / texture (additionalProperties: false in schema)
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "MultiPoint":
+        return _geom_from_dict(cls, data, has_appearance=False)
+
+    def to_dict(self) -> dict:
+        return _geom_to_dict(self)
+
 
 @dataclass
 class MultiLineString:
@@ -141,6 +219,13 @@ class MultiLineString:
     type: Literal["MultiLineString"] = "MultiLineString"
     semantics: GeometrySemantics | None = None
     # no material / texture (additionalProperties: false in schema)
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "MultiLineString":
+        return _geom_from_dict(cls, data, has_appearance=False)
+
+    def to_dict(self) -> dict:
+        return _geom_to_dict(self)
 
 
 @dataclass
@@ -152,6 +237,13 @@ class MultiSurface:
     material: Material | None = None
     texture: Texture | None = None
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "MultiSurface":
+        return _geom_from_dict(cls, data, has_appearance=True)
+
+    def to_dict(self) -> dict:
+        return _geom_to_dict(self)
+
 
 @dataclass
 class CompositeSurface:
@@ -161,6 +253,13 @@ class CompositeSurface:
     semantics: GeometrySemantics | None = None
     material: Material | None = None
     texture: Texture | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "CompositeSurface":
+        return _geom_from_dict(cls, data, has_appearance=True)
+
+    def to_dict(self) -> dict:
+        return _geom_to_dict(self)
 
 
 @dataclass
@@ -172,6 +271,13 @@ class Solid:
     material: Material | None = None
     texture: Texture | None = None
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "Solid":
+        return _geom_from_dict(cls, data, has_appearance=True)
+
+    def to_dict(self) -> dict:
+        return _geom_to_dict(self)
+
 
 @dataclass
 class CompositeSolid:
@@ -182,6 +288,13 @@ class CompositeSolid:
     material: Material | None = None
     texture: Texture | None = None
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "CompositeSolid":
+        return _geom_from_dict(cls, data, has_appearance=True)
+
+    def to_dict(self) -> dict:
+        return _geom_to_dict(self)
+
 
 @dataclass
 class MultiSolid:
@@ -191,6 +304,13 @@ class MultiSolid:
     semantics: GeometrySemantics | None = None
     material: Material | None = None
     texture: Texture | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "MultiSolid":
+        return _geom_from_dict(cls, data, has_appearance=True)
+
+    def to_dict(self) -> dict:
+        return _geom_to_dict(self)
 
 
 # Union of every primitive defined in geomprimitives.schema.json.
@@ -215,3 +335,12 @@ GEOMPRIMITIVE_TYPES: dict[str, type] = {
     "CompositeSolid": CompositeSolid,
     "MultiSolid": MultiSolid,
 }
+
+
+def geom_primitive_from_dict(data: dict) -> GeometryPrimitive:
+    """Deserialize a geometry primitive dict using the `type` field for dispatch."""
+    type_str = data.get("type", "")
+    cls = GEOMPRIMITIVE_TYPES.get(type_str)
+    if cls is None:
+        raise ValueError(f"Unknown geometry type: {type_str!r}")
+    return cls.from_dict(data)

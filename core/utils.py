@@ -1,10 +1,14 @@
 """Blender CityJSON plugin utils module
 
-This modules provides utitily methods for the importing/exporting
+This modules provides utility methods for the importing/exporting
 processing of CityJSON files
 """
 
 import bpy
+
+from ..models.cityjson import CityJSONDocument, Metadata, Transform
+from ..models.cityobjects import _AbstractCityObject
+from ..models.geomprimitives import Semantics
 
 ########## Importer functions ##########
 
@@ -16,9 +20,9 @@ def remove_scene_objects():
     if bpy.context.scene.world.keys():
         for custom_property in list(bpy.context.scene.world.keys()):
             del bpy.context.scene.world[custom_property]
-    # Deleting previous objects every time a new CityJSON file is imported
-    bpy.ops.object.select_all(action="SELECT")
-    bpy.ops.object.delete()
+    # Remove all objects without relying on operator context (VIEW_3D not guaranteed)
+    for obj in list(bpy.data.objects):
+        bpy.data.objects.remove(obj, do_unlink=True)
     # Deleting previously existing collections
     for collection in bpy.data.collections:
         bpy.data.collections.remove(collection)
@@ -83,7 +87,7 @@ def original_coordinates(vertices, minx, miny, minz):
 
 
 def clean_buffer(vertices, bounds):
-    """Cleans the[]ces index from unused vertices3"""
+    """Cleans the vertex index buffer from unused vertices"""
 
     new_bounds = []
     new_vertices = []
@@ -103,12 +107,9 @@ def clean_buffer(vertices, bounds):
 
 def get_geometry_name(objid, geom, index):
     """Returns the name of the provided geometry"""
-    if "lod" in geom:
-        return "{index}: [LoD{lod}] {name}".format(
-            name=objid, lod=geom["lod"], index=index
-        )
-    else:
+    if geom.type == "GeometryInstance":
         return f"{index}: [GeometryInstance] {objid}"
+    return f"{index}: [LoD{geom.lod}] {objid}"
 
 
 def create_empty_object(name):
@@ -178,19 +179,18 @@ def get_collection(collection_name):
 ########## Exporter functions ##########
 
 
-def store_semantic_surfaces(init_json, city_object, index, CityObject_Id):
-    """Stores the semantics from the objects materials"""
+def store_semantic_surfaces(doc: CityJSONDocument, city_object, index: int, city_object_id: str):
+    """Populates geometry semantics from Blender materials and returns a name→index lookup."""
     if not city_object.data.materials:
         return None
 
-    semantics = init_json["CityObjects"][CityObject_Id]["geometry"][index]["semantics"]
-    semantic_surface_lookup = {}
+    geom = doc.CityObjects[city_object_id].geometry[index]
+    semantic_surface_lookup: dict[str, int] = {}
     semantic_surface_index = 0
     for material in city_object.data.materials:
         if material is None:
             continue
-
-        semantics["surfaces"].append({"type": material["type"]})
+        geom.semantics.surfaces.append(Semantics(type=material["type"]))
         semantic_surface_lookup[material.name] = semantic_surface_index
         semantic_surface_index += 1
 
@@ -198,24 +198,23 @@ def store_semantic_surfaces(init_json, city_object, index, CityObject_Id):
 
 
 def link_face_semantic_surface(
-    init_json, city_object, index, CityObject_Id, semantic_surface_lookup, face
+    doc: CityJSONDocument,
+    city_object,
+    index: int,
+    city_object_id: str,
+    semantic_surface_lookup,
+    face,
 ):
-    """Links the object faces to corresponding semantic surfaces"""
+    """Links a mesh face to its corresponding semantic surface index."""
     if not city_object.data.materials:
         return
+    geom = doc.CityObjects[city_object_id].geometry[index]
     if city_object.data.materials[face.material_index] is None:
-        init_json["CityObjects"][CityObject_Id]["geometry"][index]["semantics"][
-            "values"
-        ][0].append(None)
+        geom.semantics.values[0].append(None)
         return
 
-    semantic_surface_name = city_object.data.materials[face.material_index].name
-    semantic_surface_index = semantic_surface_lookup[semantic_surface_name]
-    init_json["CityObjects"][CityObject_Id]["geometry"][index]["semantics"]["values"][
-        0
-    ].append(semantic_surface_index)
-
-    return
+    name = city_object.data.materials[face.material_index].name
+    geom.semantics.values[0].append(semantic_surface_lookup[name])
 
 
 def bbox(objects):
@@ -265,7 +264,6 @@ def bbox(objects):
         world_min_extent[2] = min(world_min_extent[2], object_min_extent[2])
 
     # Translating back to original
-
     if "Axis_Origin_X_translation" in bpy.context.scene.world:
         world_min_extent[0] -= bpy.context.scene.world["Axis_Origin_X_translation"]
         world_min_extent[1] -= bpy.context.scene.world["Axis_Origin_Y_translation"]
@@ -278,22 +276,19 @@ def bbox(objects):
     return world_min_extent, world_max_extent
 
 
-def write_vertices_to_cityjson(city_object, vertex, init_json):
-    """Writing vertices to minimal_json after translation to the original position."""
-    # Initialize progress status
-    progress = 0
+def write_vertices_to_cityjson(city_object, vertex, doc: CityJSONDocument):
+    """Writes a vertex to doc.vertices after translating to the original CRS position."""
     coord = city_object.matrix_world @ vertex
     if (
         "transformed" in bpy.context.scene.world
         and "Axis_Origin_X_translation" in bpy.context.scene.world
     ):
-        # First translate back to the original CRS coordinates
+        # Translate back to original CRS coordinates, then reverse the quantisation transform
         x, y, z = (
             coord[0] - bpy.context.scene.world["Axis_Origin_X_translation"],
             coord[1] - bpy.context.scene.world["Axis_Origin_Y_translation"],
             coord[2] - bpy.context.scene.world["Axis_Origin_Z_translation"],
         )
-        # Second transform the original CRS coordinates based on the transform parameters of the original CityJSON file
         x = round(
             (x - bpy.context.scene.world["transform.X_translate"])
             / bpy.context.scene.world["transform.X_scale"]
@@ -306,31 +301,24 @@ def write_vertices_to_cityjson(city_object, vertex, init_json):
             (z - bpy.context.scene.world["transform.Z_translate"])
             / bpy.context.scene.world["transform.Z_scale"]
         )
-        init_json["vertices"].append([x, y, z])
-        progress += 1
-        # print("Appending vertices into CityJSON: {percent}% completed".format(percent=round(progress * 100 / progress_max, 1)),end="\r")
+        doc.vertices.append([x, y, z])
     elif "Axis_Origin_X_translation" in bpy.context.scene.world:
-        init_json["vertices"].append(
+        doc.vertices.append(
             [
                 coord[0] - bpy.context.scene.world["Axis_Origin_X_translation"],
                 coord[1] - bpy.context.scene.world["Axis_Origin_Y_translation"],
                 coord[2] - bpy.context.scene.world["Axis_Origin_Z_translation"],
             ]
         )
-        progress += 1
-        # print("Appending vertices into CityJSON: {percent}% completed".format(percent=round(progress * 100 / progress_max, 1)),end="\r")
     else:
-        init_json["vertices"].append([coord[0], coord[1], coord[2]])
-        progress += 1
-        # print("Appending vertices into CityJSON: {percent}% completed".format(percent=round(progress * 100 / progress_max, 1)),end="\r")
+        doc.vertices.append([coord[0], coord[1], coord[2]])
 
 
-def remove_vertex_duplicates(init_json, precision=3):
-    """Finds all duplicate vertices within a given precision and merges these
-    method from https://github.com/cityjson/cjio/blob/faf422afe94b4787aeffa9b2e53ee71b32546320/cjio/cityjson.py#L1208
+def remove_vertex_duplicates(doc: CityJSONDocument, precision: int = 3):
+    """Finds all duplicate vertices within a given precision and merges them.
+    Adapted from https://github.com/cityjson/cjio/blob/faf422afe94b4787aeffa9b2e53ee71b32546320/cjio/cityjson.py#L1208
     """
-
-    if "transform" in init_json:
+    if doc.transform is not None:
         precision = 0
 
     def update_geom_indices(a, newids):
@@ -340,12 +328,11 @@ def remove_vertex_duplicates(init_json, precision=3):
             else:
                 a[i] = newids[each]
 
-    # --
-    totalinput = len(init_json["vertices"])
-    h = {}
-    newids = [-1] * len(init_json["vertices"])
-    newvertices = []
-    for i, v in enumerate(init_json["vertices"]):
+    totalinput = len(doc.vertices)
+    h: dict[str, int] = {}
+    newids = [-1] * len(doc.vertices)
+    newvertices: list[str] = []
+    for i, v in enumerate(doc.vertices):
         s = f"{{x:.{precision}f}} {{y:.{precision}f}} {{z:.{precision}f}}".format(
             x=v[0], y=v[1], z=v[2]
         )
@@ -356,109 +343,65 @@ def remove_vertex_duplicates(init_json, precision=3):
             newvertices.append(s)
         else:
             newids[i] = h[s]
-    # -- update indices
-    for theid in init_json["CityObjects"]:
-        for g in init_json["CityObjects"][theid]["geometry"]:
-            update_geom_indices(g["boundaries"], newids)
-    # -- replace the vertices, innit?
+
+    for co in doc.CityObjects.values():
+        if hasattr(co, "geometry"):
+            for geom in co.geometry:
+                update_geom_indices(geom.boundaries, newids)
+
     newv2 = []
     for v in newvertices:
-        if "transform" in init_json:
+        if doc.transform is not None:
             a = list(map(int, v.split()))
         else:
             a = list(map(float, v.split()))
         newv2.append(a)
-    init_json["vertices"] = newv2
-    return totalinput - len(init_json["vertices"])
+    doc.vertices = newv2
+    return totalinput - len(doc.vertices)
 
 
-def export_transformation_parameters(init_json):
+def export_transformation_parameters(doc: CityJSONDocument):
+    """Reads the transform stored in scene world properties and sets doc.transform."""
     if "transformed" in bpy.context.scene.world:
         print("Exporting transformation parameters...")
-        init_json.update({"transform": {}})
-        init_json["transform"].update({"scale": []})
-        init_json["transform"].update({"translate": []})
-
-        init_json["transform"]["scale"].append(
-            bpy.context.scene.world["transform.X_scale"]
-        )
-        init_json["transform"]["scale"].append(
-            bpy.context.scene.world["transform.Y_scale"]
-        )
-        init_json["transform"]["scale"].append(
-            bpy.context.scene.world["transform.Z_scale"]
-        )
-
-        init_json["transform"]["translate"].append(
-            bpy.context.scene.world["transform.X_translate"]
-        )
-        init_json["transform"]["translate"].append(
-            bpy.context.scene.world["transform.Y_translate"]
-        )
-        init_json["transform"]["translate"].append(
-            bpy.context.scene.world["transform.Z_translate"]
+        doc.transform = Transform(
+            scale=[
+                bpy.context.scene.world["transform.X_scale"],
+                bpy.context.scene.world["transform.Y_scale"],
+                bpy.context.scene.world["transform.Z_scale"],
+            ],
+            translate=[
+                bpy.context.scene.world["transform.X_translate"],
+                bpy.context.scene.world["transform.Y_translate"],
+                bpy.context.scene.world["transform.Z_translate"],
+            ],
         )
 
 
-def export_metadata(init_json):
+def export_metadata(doc: CityJSONDocument):
+    """Computes and sets doc.metadata from scene world properties and object bounds."""
     print("Exporting metadata...")
-    # Check if model's reference system exists
-    if "CRS" in bpy.context.scene.world:
-        init_json["metadata"].update(
-            {"referenceSystem": bpy.context.scene.world["CRS"]}
-        )
-    init_json["metadata"].update({"geographicalExtent": []})
-    # Calculation of the bounding box of the whole area to get the geographic extents
+    ref_sys = bpy.context.scene.world.get("CRS")
     minim, maxim = bbox(bpy.data.objects)
-
-    # Updating the metadata tag
-    print("Appending geographical extent...")
-    for extent_coord in minim:
-        init_json["metadata"]["geographicalExtent"].append(extent_coord)
-    for extent_coord in maxim:
-        init_json["metadata"]["geographicalExtent"].append(round(extent_coord, 3))
+    extent = list(minim) + [round(c, 3) for c in maxim]
+    doc.metadata = Metadata(
+        referenceSystem=ref_sys if ref_sys else None,
+        geographicalExtent=extent,
+    )
 
 
-def export_parent_child(init_json):
-    """Store parents/children tags into CityJSON file
-    Going again through the loop because there is the case that the object whose tag is attempted to be updated
-    is not yet created if this code is run iin the above loop.
-    TODO this can be done more efficiently. To be improved..."""
+def export_parent_child(doc: CityJSONDocument):
+    """Stores parent/child relationships in doc.CityObjects from the Blender hierarchy."""
     print("\nSaving parents-children relations...")
     for city_object in bpy.data.objects:
-        # Parent and child relationships are stored in the empty objects carrying also all the attributes
         if city_object.parent and city_object.type == "EMPTY":
-            parents_id = city_object.parent.name
-            # Create children node/tag below the parent's ID and assign to it the children's name
-            init_json["CityObjects"][parents_id].setdefault("children", [])
-            init_json["CityObjects"][parents_id]["children"].append(city_object.name)
-            # Create the "parents" tag below the children's ID and assign to it the parent's name
-            init_json["CityObjects"][city_object.name].update({"parents": []})
-            init_json["CityObjects"][city_object.name]["parents"].append(parents_id)
-
-
-def export_attributes(split, init_json, CityObject_Id, attribute):
-    """Storing the attributes back to the dictionary.
-    The following code works only up to 3 levels of nested attributes
-    TODO Future suggestion: Make a function out of this that works for any level of nested attributes."""
-    if len(split) == 3:
-        if not (split[0] in init_json["CityObjects"][CityObject_Id]):
-            init_json["CityObjects"][CityObject_Id].update({split[0]: {}})
-        if not (split[1] in init_json["CityObjects"][CityObject_Id][split[0]]):
-            init_json["CityObjects"][CityObject_Id][split[0]].update({split[1]: {}})
-        if not (
-            split[2] in init_json["CityObjects"][CityObject_Id][split[0]][split[1]]
-        ):
-            init_json["CityObjects"][CityObject_Id][split[0]][split[1]].update(
-                {split[2]: attribute}
-            )
-    elif len(split) == 2:
-        if not (split[0] in init_json["CityObjects"][CityObject_Id]):
-            init_json["CityObjects"][CityObject_Id].update({split[0]: {}})
-        if not (split[1] in init_json["CityObjects"][CityObject_Id][split[0]]):
-            init_json["CityObjects"][CityObject_Id][split[0]].update(
-                {split[1]: attribute}
-            )
-    elif len(split) == 1:
-        if not (split[0] in init_json["CityObjects"][CityObject_Id]):
-            init_json["CityObjects"][CityObject_Id].update({split[0]: attribute})
+            parent_id = city_object.parent.name
+            child_id = city_object.name
+            parent_co = doc.CityObjects.get(parent_id)
+            child_co = doc.CityObjects.get(child_id)
+            if parent_co is not None and hasattr(parent_co, "children"):
+                if child_id not in parent_co.children:
+                    parent_co.children.append(child_id)
+            if child_co is not None and hasattr(child_co, "parents"):
+                if parent_id not in child_co.parents:
+                    child_co.parents.append(parent_id)

@@ -20,8 +20,6 @@ class Up3datePTgui(bpy.types.Panel):
         row = layout.row(align=True)
         row.prop(props, "lod")
         row = layout.row()
-        row.prop(props, "lod_version")
-        row = layout.row()
         row.prop(props, "feature_type")
         row = layout.row()
         row.prop(props, "geometry_type")

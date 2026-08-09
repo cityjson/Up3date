@@ -7,16 +7,11 @@ class Up3dateCityJsonfy(bpy.types.Operator):
     bl_context = "scene"
 
     def execute(self, context):
-        scene = bpy.context.scene
+        scene = context.scene
         props = scene.cityjsonfy_properties
 
-        # define properties
-        lod_fullversion = props.lod
-        if props.lod_version != 0:
-            lod_fullversion = round(props.lod + (props.lod_version / 10), 1)
-
         # loop through selected objects
-        for geom_obj in bpy.context.selected_objects:
+        for geom_obj in context.selected_objects:
             cityjson_id = geom_obj.name
             geom_location = geom_obj.location
 
@@ -26,7 +21,7 @@ class Up3dateCityJsonfy(bpy.types.Operator):
             cityjson_object.location = geom_location
 
             # set names and attributes
-            geom_obj.name = f"{props.lod}: [LOD{lod_fullversion}] {cityjson_id}"
+            geom_obj.name = f"{props.lod}: [LOD{props.lod}] {cityjson_id}"
             geom_obj["type"] = props.geometry_type
             geom_obj["lod"] = props.lod
             cityjson_object.name = cityjson_id

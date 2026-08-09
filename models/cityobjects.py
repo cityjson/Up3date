@@ -1,27 +1,28 @@
 """
 Python dataclasses for CityJSON 2.0.2 CityObjects.
 
-Generated from:
-    https://tudelft.nl
-    https://tudelft.nl
-    https://tudelft.nl
+Spec: https://www.cityjson.org/specs/2.0.2/
+Schema: https://3d.bk.tudelft.nl/schemas/cityjson/2.0.2/cityjson.min.schema.json
 """
 
 from __future__ import annotations
 
+import dataclasses
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from geomprimitives import (
+from .geomprimitives import (
     CompositeSolid,
     CompositeSurface,
+    GeometryPrimitive,
     MultiLineString,
     MultiPoint,
     MultiSolid,
     MultiSurface,
     Solid,
+    geom_primitive_from_dict,
 )
-from geomtemplates import GeometryInstance
+from .geomtemplates import GeometryInstance
 
 # ---------------------------------------------------------------------------
 # PEP 695 Type Aliases (Python 3.12+)
@@ -61,20 +62,51 @@ type GeomCityObjectGroup = (
 type GeomGeneric = (
     MultiPoint
     | MultiLineString
-    | Solid
-    | MultiSolid
-    | CompositeSolid
     | MultiSurface
     | CompositeSurface
+    | Solid
+    | CompositeSolid
+    | MultiSolid
     | GeometryInstance
 )
 
 
+# ---------------------------------------------------------------------------
+# Helpers
+# ---------------------------------------------------------------------------
+
+def _geom_any_from_dict(data: dict) -> GeometryPrimitive | GeometryInstance:
+    """Deserialize any geometry object, including GeometryInstance."""
+    if data.get("type") == "GeometryInstance":
+        return GeometryInstance.from_dict(data)
+    return geom_primitive_from_dict(data)
+
+
 @dataclass
 class Address:
-    """Item of the `address` array (Building, BuildingUnit, Bridge, BridgePart)."""
+    """Item of the `address` array (Building, BuildingUnit, Bridge, BridgePart).
+
+    The spec says address members "are not prescribed"; only `location` has a
+    defined structure.  All other fields are kept verbatim in `extra`.
+    """
 
     location: MultiPoint | None = None
+    extra: dict[str, Any] = field(default_factory=dict)  # unprescribed fields
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "Address":
+        location = None
+        if "location" in data:
+            location = MultiPoint.from_dict(data["location"])
+        extra = {k: v for k, v in data.items() if k != "location"}
+        return cls(location=location, extra=extra)
+
+    def to_dict(self) -> dict:
+        d: dict[str, Any] = {}
+        if self.location is not None:
+            d["location"] = self.location.to_dict()
+        d.update(self.extra)
+        return d
 
 
 # ---------------------------------------------------------------------------
@@ -91,12 +123,54 @@ class _AbstractCityObject:
     children: list[str] = field(default_factory=list)  # IDs of children
     geographicalExtent: list[float] | None = None  # exactly 6 numbers if set
 
+    @classmethod
+    def from_dict(cls, data: dict) -> "_AbstractCityObject":
+        valid = {f.name for f in dataclasses.fields(cls)}
+        kwargs: dict[str, Any] = {
+            "attributes": data.get("attributes", {}),
+            "parents": data.get("parents", []),
+            "children": data.get("children", []),
+            "geographicalExtent": data.get("geographicalExtent"),
+        }
+        if "geometry" in valid:
+            kwargs["geometry"] = [_geom_any_from_dict(g) for g in data.get("geometry", [])]
+        if "address" in valid:
+            kwargs["address"] = [Address.from_dict(a) for a in data.get("address", [])]
+        if "children_roles" in valid:
+            kwargs["children_roles"] = data.get("children_roles", [])
+        return cls(**{k: v for k, v in kwargs.items() if k in valid})
+
+    def to_dict(self) -> dict:
+        d: dict[str, Any] = {"type": self.type}  # type: ignore[attr-defined]
+        if self.attributes:
+            d["attributes"] = self.attributes
+        if self.parents:
+            d["parents"] = self.parents
+        if self.children:
+            d["children"] = self.children
+        if self.geographicalExtent is not None:
+            d["geographicalExtent"] = self.geographicalExtent
+        if hasattr(self, "geometry"):
+            d["geometry"] = [g.to_dict() for g in self.geometry]  # type: ignore[attr-defined]
+        if hasattr(self, "address") and self.address:  # type: ignore[attr-defined]
+            d["address"] = [a.to_dict() for a in self.address]  # type: ignore[attr-defined]
+        if hasattr(self, "children_roles") and self.children_roles:  # type: ignore[attr-defined]
+            d["children_roles"] = self.children_roles  # type: ignore[attr-defined]
+        return d
+
 
 @dataclass
 class ExtensionObject:
     """Schema: ExtensionObject. `type` must match pattern (+)([A-Z])\\w+."""
 
     type: str  # e.g. "+GenericCityObject"
+
+    @classmethod
+    def from_dict(cls, data: dict) -> "ExtensionObject":
+        return cls(type=data["type"])
+
+    def to_dict(self) -> dict:
+        return {"type": self.type}
 
 
 # ---------------------------------------------------------------------------
@@ -301,6 +375,12 @@ class WaterBody(_AbstractCityObject):
 
 
 @dataclass
+class TINRelief(_AbstractCityObject):
+    type: Literal["TINRelief"] = "TINRelief"
+    geometry: list[CompositeSurface] = field(default_factory=list)
+
+
+@dataclass
 class LandUse(_AbstractCityObject):
     type: Literal["LandUse"] = "LandUse"
     geometry: list[GeomLandUse] = field(default_factory=list)
@@ -331,5 +411,69 @@ class GenericCityObject(_AbstractCityObject):
 
 @dataclass
 class CityObjectGroup(_AbstractCityObject):
+    """A group of City Objects.
+
+    Per spec §2.5, group members are stored in the inherited `children` field
+    (JSON key "children").  `children_roles` is an optional parallel array
+    describing each member's role in the group.
+    """
+
     type: Literal["CityObjectGroup"] = "CityObjectGroup"
+    children_roles: list[str | None] = field(default_factory=list)
     geometry: list[GeomCityObjectGroup] = field(default_factory=list)
+
+
+# ---------------------------------------------------------------------------
+# Dispatch table and factory function
+# ---------------------------------------------------------------------------
+
+CITYOBJECT_TYPES: dict[str, type] = {
+    "Building": Building,
+    "BuildingPart": BuildingPart,
+    "BuildingInstallation": BuildingInstallation,
+    "BuildingConstructiveElement": BuildingConstructiveElement,
+    "BuildingFurniture": BuildingFurniture,
+    "BuildingRoom": BuildingRoom,
+    "BuildingUnit": BuildingUnit,
+    "BuildingStorey": BuildingStorey,
+    "Tunnel": Tunnel,
+    "TunnelPart": TunnelPart,
+    "TunnelInstallation": TunnelInstallation,
+    "TunnelConstructiveElement": TunnelConstructiveElement,
+    "TunnelFurniture": TunnelFurniture,
+    "TunnelHollowSpace": TunnelHollowSpace,
+    "Bridge": Bridge,
+    "BridgePart": BridgePart,
+    "BridgeInstallation": BridgeInstallation,
+    "BridgeConstructiveElement": BridgeConstructiveElement,
+    "BridgeFurniture": BridgeFurniture,
+    "BridgeRoom": BridgeRoom,
+    "Road": Road,
+    "Railway": Railway,
+    "TransportSquare": TransportSquare,
+    "Waterway": Waterway,
+    "SolitaryVegetationObject": SolitaryVegetationObject,
+    "PlantCover": PlantCover,
+    "WaterBody": WaterBody,
+    "TINRelief": TINRelief,
+    "LandUse": LandUse,
+    "CityFurniture": CityFurniture,
+    "OtherConstruction": OtherConstruction,
+    "GenericCityObject": GenericCityObject,
+    "CityObjectGroup": CityObjectGroup,
+}
+
+
+def cityobject_from_dict(data: dict) -> _AbstractCityObject | ExtensionObject:
+    """Deserialize a CityObject dict using `type` for dispatch.
+
+    Extension objects (type starting with '+') are returned as ExtensionObject.
+    Unknown types raise ValueError.
+    """
+    type_str = data.get("type", "")
+    if type_str.startswith("+"):
+        return ExtensionObject.from_dict(data)
+    cls = CITYOBJECT_TYPES.get(type_str)
+    if cls is None:
+        raise ValueError(f"Unknown CityObject type: {type_str!r}")
+    return cls.from_dict(data)

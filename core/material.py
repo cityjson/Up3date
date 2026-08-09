@@ -32,11 +32,11 @@ class BasicMaterialFactory:
 
     def create_material(self, surface):
         """Returns a new material based on the semantic surface of the object"""
-        mat = bpy.data.materials.new(name=surface["type"])
+        mat = bpy.data.materials.new(name=surface.type)
 
-        assign_properties(mat, surface)
+        assign_properties(mat, surface.to_dict())
 
-        mat.diffuse_color = self.get_surface_color(surface["type"])
+        mat.diffuse_color = self.get_surface_color(surface.type)
 
         return mat
 
@@ -51,10 +51,10 @@ class BasicMaterialFactory:
         """
         mats = []
         values = []
-        if "semantics" in geometry:
-            values = geometry["semantics"]["values"]
+        if geometry.semantics is not None:
+            values = geometry.semantics.values
 
-            for surface in geometry["semantics"]["surfaces"]:
+            for surface in geometry.semantics.surfaces:
                 mats.append(self.get_material(surface))
 
             values = clean_list(values)
@@ -69,7 +69,7 @@ class ReuseMaterialFactory(BasicMaterialFactory):
     def check_material(material, surface):
         """Checks if the material can represent the provided surface"""
 
-        if not material.name.startswith(surface["type"]):  # noqa: SIM103
+        if not material.name.startswith(surface.type):  # noqa: SIM103
             return False
 
         # TODO: Add logic here to check for semantic surface attributes
@@ -136,4 +136,4 @@ class CityObjectTypeMaterialFactory:
         geometry
         """
 
-        return ([self.get_material(cityobject["type"])], [])
+        return ([self.get_material(cityobject.type)], [])
