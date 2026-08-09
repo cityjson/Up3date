@@ -125,7 +125,8 @@ class CityJSONParser:
                                       values)
 
         if 'lod' in geom:
-            geom_obj['lod'] = geom['lod']
+            geom_obj['lod'] = int(geom['lod'])
+            
 
         geom_obj['type'] = geom['type']
 
@@ -261,19 +262,19 @@ class CityJSONExporter:
         init_json["CityObjects"].setdefault(CityObject_id,{})
         init_json["CityObjects"][CityObject_id].setdefault('geometry',[])
         #Check if the user has assigned the custom properties 'lod' and 'type' correctly 
-        if ('lod' in city_object.keys() and (type(city_object['lod']) == float or type(city_object['lod'])==int) ):
-            if ('type' in city_object.keys() and (city_object['type'] == "MultiSurface" or city_object['type'] == "CompositeSurface" or city_object['type'] == "Solid")):
+        if 'lod' in city_object.keys() and (type(city_object['lod']) == float or type(city_object['lod'])==int):
+            if 'type' in city_object.keys() and (city_object['type'] == "MultiSurface" or city_object['type'] == "CompositeSurface" or city_object['type'] == "Solid"):
                 #Check if object has materials (in Blender) i.e semantics in real life and if yes create the extra keys (within_geometry) to store it.
                 #Otherwise just create the rest of the tags
                 if city_object.data.materials:
                     init_json["CityObjects"][CityObject_id]['geometry'].append({'type':city_object['type'],'boundaries':[],'semantics':{'surfaces': [], 'values': [[]]},'texture':{},'lod':city_object['lod']})
                 else:
-                    init_json["CityObjects"][CityObject_id]['geometry'].append({'type':city_object['type'],'boundaries':[],'lod':city_object['lod']})
+                    init_json["CityObjects"][CityObject_id]['geometry'].append({'type':city_object['type'],'boundaries':[],'lod': city_object['lod']})
             else:
-                print ("You either forgot to add `type` as a custom property of the geometry, ", name, ", or 'type' is not `MultiSurface`,`CompositeSurface` or `Solid`")
+                print ("You either forgot to add `type` as a custom property of the geometry, ", city_object.name, ", or 'type' is not `MultiSurface`,`CompositeSurface` or `Solid`")
                 sys.exit(None)
         else:
-            print ("You either forgot to add `lod` as a custom property of the geometry, ", name, ", or 'lod' is not a number")
+            print ("You either forgot to add `lod` as a custom property of the geometry, ", city_object.name, ", or 'lod' is not a number")
             sys.exit(None)
             
         #Accessing object's vertices 
