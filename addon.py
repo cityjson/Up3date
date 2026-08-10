@@ -74,10 +74,10 @@ class ExportCityJSON(Operator, ExportHelper):
     bl_label = "Export CityJSON"
 
     # ExportHelper mixin class uses this
-    filename_ext = ".city.json"
+    filename_ext = ".json"
 
     filter_glob: StringProperty(
-        default="*.city.json",
+        default="*.json",
         options={"HIDDEN"},
         maxlen=255,  # Max internal buffer length, longer would be clamped.
     )
