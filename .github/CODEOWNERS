@@ -1,0 +1,5 @@
+# Approval from either owner is sufficient for repository-wide changes.
+* @konmast3r @liberostelios
+
+# Keep ownership explicit for changes to the ownership policy itself.
+/.github/CODEOWNERS @konmast3r @liberostelios
