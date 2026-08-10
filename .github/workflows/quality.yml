@@ -2,6 +2,8 @@ name: Code quality
 
 on:
   push:
+    branches:
+      - main
   pull_request:
 
 permissions:
@@ -13,7 +15,7 @@ concurrency:
 
 jobs:
   quality:
-    name: Ruff and unit tests
+    name: Ruff, typing, and unit tests
     runs-on: ubuntu-latest
     continue-on-error: false
 
@@ -61,7 +63,24 @@ jobs:
       - name: Run unit tests
         id: unit_tests
         continue-on-error: true
-        run: uv run pytest
+        env:
+          COVERAGE_FILE: .coverage.unit
+        run: >-
+          uv run pytest
+          --cov=.
+          --cov-branch
+          --cov-report=
+          --cov-fail-under=0
+
+      - name: Upload unit coverage
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: unit-coverage
+          path: .coverage.unit
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 1
 
       - name: Report quality results
         if: always()
@@ -93,3 +112,153 @@ jobs:
               exit 1
             fi
           done
+
+  blender_integration:
+    name: Blender ${{ matrix.blender_version }} integration tests
+    needs: quality
+    runs-on: ubuntu-latest
+    continue-on-error: false
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - blender_version: "5.2.0"
+            blender_series: "5.2"
+            blender_sha256: "96f6c181a30f4950607839dc84d42a354b250d8a0231b098b59b7bc69c351c48"
+
+    defaults:
+      run:
+        shell: bash --noprofile --norc -euo pipefail {0}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync --locked --dev
+
+      - name: Install Blender ${{ matrix.blender_version }}
+        id: blender_setup
+        continue-on-error: true
+        env:
+          BLENDER_VERSION: ${{ matrix.blender_version }}
+          BLENDER_SERIES: ${{ matrix.blender_series }}
+          BLENDER_SHA256: ${{ matrix.blender_sha256 }}
+        run: |
+          blender_directory="blender-${BLENDER_VERSION}-linux-x64"
+          blender_archive="${RUNNER_TEMP}/${blender_directory}.tar.xz"
+          curl --fail --location --silent --show-error \
+            "https://download.blender.org/release/Blender${BLENDER_SERIES}/${blender_directory}.tar.xz" \
+            --output "${blender_archive}"
+          echo "${BLENDER_SHA256}  ${blender_archive}" \
+            | sha256sum --check --strict
+          tar --extract --file "${blender_archive}" --directory "${RUNNER_TEMP}"
+          echo "BLENDER_EXECUTABLE=${RUNNER_TEMP}/${blender_directory}/blender" \
+            >> "${GITHUB_ENV}"
+
+      - name: Run headless Blender integration tests
+        id: blender_integration
+        continue-on-error: true
+        env:
+          COVERAGE_FILE: .coverage.blender
+          PYTHONPATH: ${{ github.workspace }}/.venv/lib/python3.13/site-packages
+        run: >-
+          "${BLENDER_EXECUTABLE}"
+          --background
+          --factory-startup
+          --python-use-system-env
+          --python-exit-code 1
+          --python tests/blender/run_integration_tests.py
+
+      - name: Upload Blender coverage
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: blender-coverage-${{ matrix.blender_version }}
+          path: .coverage.blender
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 1
+
+      - name: Report Blender integration results
+        if: always()
+        env:
+          BLENDER_SETUP_RESULT: ${{ steps.blender_setup.outcome }}
+          BLENDER_INTEGRATION_RESULT: ${{ steps.blender_integration.outcome }}
+        run: |
+          {
+            echo '## Blender ${{ matrix.blender_version }} integration results'
+            echo '| Check | Result |'
+            echo '| --- | --- |'
+            echo "| Blender setup | ${BLENDER_SETUP_RESULT} |"
+            echo "| Headless Blender integration | ${BLENDER_INTEGRATION_RESULT} |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          for result in \
+            "${BLENDER_SETUP_RESULT}" \
+            "${BLENDER_INTEGRATION_RESULT}"; do
+            if [[ "${result}" != 'success' ]]; then
+              exit 1
+            fi
+          done
+
+  coverage:
+    name: Combined test coverage
+    needs: [quality, blender_integration]
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash --noprofile --norc -euo pipefail {0}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync --locked --dev
+
+      - name: Download unit coverage
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: unit-coverage
+          path: .coverage-inputs/unit
+
+      - name: Download Blender coverage
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: blender-coverage-*
+          path: .coverage-inputs/blender
+          merge-multiple: true
+
+      - name: Check combined test coverage
+        run: |
+          uv run coverage combine .coverage-inputs/unit .coverage-inputs/blender
+
+          if uv run coverage report | tee coverage-report.txt; then
+            coverage_status=0
+          else
+            coverage_status=$?
+          fi
+
+          {
+            echo '## Combined test coverage'
+            echo '```text'
+            cat coverage-report.txt
+            echo '```'
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          exit "${coverage_status}"

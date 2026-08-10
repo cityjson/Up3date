@@ -417,6 +417,23 @@ class TestExtensionObject:
     def test_to_dict(self):
         assert ExtensionObject(type="+Thing").to_dict() == {"type": "+Thing"}
 
+    def test_round_trip_common_and_extension_properties(self):
+        raw = {
+            "type": "+NoiseSegment",
+            "attributes": {"level": {"value": 4.2, "uom": "dB"}},
+            "parents": ["furniture-1"],
+            "geometry": [
+                {
+                    "type": "MultiLineString",
+                    "lod": "0",
+                    "boundaries": [[0, 1]],
+                }
+            ],
+            "+extra": "preserved",
+        }
+
+        assert ExtensionObject.from_dict(raw).to_dict() == raw
+
 
 # ---------------------------------------------------------------------------
 # CITY_OBJECT_TYPES dispatch table

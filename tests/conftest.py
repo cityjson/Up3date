@@ -1,6 +1,31 @@
 """Shared fixtures for CityJSON 2.0.2 tests."""
 
+import sys
+from pathlib import Path
+from types import ModuleType, SimpleNamespace
+
 import pytest
+
+# Core modules import Blender's Python API.  A small module stub lets unit tests
+# exercise their pure logic without starting Blender (which is covered by
+# integration testing rather than this unit-test suite).
+PROJECT_PARENT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(PROJECT_PARENT))
+
+bpy = ModuleType("bpy")
+bpy.context = SimpleNamespace()
+bpy.data = SimpleNamespace()
+sys.modules["bpy"] = bpy
+
+
+class IDPropertyArray(list):
+    def to_list(self):
+        return list(self)
+
+
+idprop = ModuleType("idprop")
+idprop.types = SimpleNamespace(IDPropertyArray=IDPropertyArray)
+sys.modules["idprop"] = idprop
 
 MINIMAL_CITYJSON = {
     "type": "CityJSON",

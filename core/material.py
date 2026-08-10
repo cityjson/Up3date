@@ -65,10 +65,11 @@ class BasicMaterialFactory:
         values: list[int | None] = []
         if geometry is None:
             return mats, values
-        if geometry.semantics is not None:
-            values = cast(list[int | None], geometry.semantics.values)
+        semantics = getattr(geometry, "semantics", None)
+        if semantics is not None:
+            values = cast(list[int | None], semantics.values)
 
-            for surface in geometry.semantics.surfaces:
+            for surface in semantics.surfaces:
                 mats.append(self.get_material(surface))
 
             values = cast(list[int | None], clean_list(values))
@@ -83,12 +84,10 @@ class ReuseMaterialFactory(BasicMaterialFactory):
     def check_material(material: BlenderMaterial, surface: Semantics) -> bool:
         """Checks if the material can represent the provided surface"""
 
-        if not material.name.startswith(surface.type):  # noqa: SIM103
+        if not material.name.startswith(surface.type):
             return False
 
-        # TODO: Add logic here to check for semantic surface attributes
-
-        return True
+        return material.get("type") == surface.type
 
     def get_material(self, surface: Semantics) -> BlenderMaterial:
         """Returns the material that corresponds to the semantic surface"""

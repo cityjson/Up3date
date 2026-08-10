@@ -168,16 +168,50 @@ class _AbstractCityObject:
 
 @dataclass
 class ExtensionObject:
-    """Schema: ExtensionObject. `type` must match pattern (+)([A-Z])\\w+."""
+    """CityObject defined by a CityJSON Extension schema."""
 
     type: str  # e.g. "+GenericCityObject"
+    attributes: dict[str, Any] = field(default_factory=dict)
+    parents: list[str] = field(default_factory=list)
+    children: list[str] = field(default_factory=list)
+    geographical_extent: list[float] | None = None
+    geometry: list[GeomAnyPrimitiveOrInstance] = field(default_factory=list)
+    extra: dict[str, Any] = field(default_factory=dict)
 
     @classmethod
     def from_dict(cls, data: dict) -> ExtensionObject:
-        return cls(type=data["type"])
+        known = {
+            "type",
+            "attributes",
+            "parents",
+            "children",
+            "geographicalExtent",
+            "geometry",
+        }
+        return cls(
+            type=data["type"],
+            attributes=data.get("attributes", {}),
+            parents=data.get("parents", []),
+            children=data.get("children", []),
+            geographical_extent=data.get("geographicalExtent"),
+            geometry=[_geom_any_from_dict(g) for g in data.get("geometry", [])],
+            extra={k: v for k, v in data.items() if k not in known},
+        )
 
     def to_dict(self) -> dict:
-        return {"type": self.type}
+        data: dict[str, Any] = {"type": self.type}
+        if self.attributes:
+            data["attributes"] = self.attributes
+        if self.parents:
+            data["parents"] = self.parents
+        if self.children:
+            data["children"] = self.children
+        if self.geographical_extent is not None:
+            data["geographicalExtent"] = self.geographical_extent
+        if self.geometry:
+            data["geometry"] = [geometry.to_dict() for geometry in self.geometry]
+        data.update(self.extra)
+        return data
 
 
 # ---------------------------------------------------------------------------

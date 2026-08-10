@@ -25,6 +25,25 @@ class GeometryOwner(Protocol):
     geometry: list[Any]
 
 
+CITYJSON_ID_PROPERTY = "cityjson_id"
+CITYJSON_GEOMETRY_PROPERTY = "cityjson_geometry"
+CITYJSON_DOCUMENT_EXTRAS_PROPERTY = "cityjson_document_extras"
+
+
+def blender_safe_name(name: str) -> str:
+    """Avoid numeric dot suffixes that Blender parses as duplicate counters."""
+    prefix, separator, suffix = name.rpartition(".")
+    if separator and suffix.isdigit():
+        return f"{prefix}_{suffix}"
+    return name
+
+
+def get_cityjson_id(city_object: BlenderObject) -> str:
+    """Return the preserved CityJSON identifier, falling back to the Blender name."""
+    cityjson_id = city_object.get(CITYJSON_ID_PROPERTY)
+    return cityjson_id if isinstance(cityjson_id, str) else city_object.name
+
+
 ########## Importer functions ##########
 
 
@@ -39,7 +58,7 @@ def remove_scene_objects() -> None:
     for obj in list(bpy.data.objects):
         bpy.data.objects.remove(obj, do_unlink=True)
     # Deleting previously existing collections
-    for collection in bpy.data.collections:
+    for collection in list(bpy.data.collections):
         bpy.data.collections.remove(collection)
 
 
@@ -140,7 +159,7 @@ def get_geometry_name(objid: str, geom: Any, index: int) -> str:
 def create_empty_object(name: str) -> BlenderObject:
     """Returns an empty blender object"""
 
-    new_object = bpy.data.objects.new(name, None)
+    new_object = bpy.data.objects.new(blender_safe_name(name), None)
 
     return new_object
 
@@ -157,7 +176,7 @@ def create_mesh_object(
     mesh_data = None
 
     if faces:
-        mesh_data = bpy.data.meshes.new(name)
+        mesh_data = bpy.data.meshes.new(blender_safe_name(name))
 
         for material in materials:
             mesh_data.materials.append(material)
@@ -182,7 +201,14 @@ def create_mesh_object(
         mesh_data.polygons.foreach_set("loop_start", loop_starts)
         mesh_data.polygons.foreach_set("loop_total", loop_totals)
         if len(material_indices) == len(faces):
-            mesh_data.polygons.foreach_set("material_index", material_indices)
+            safe_material_indices = [
+                material_index
+                if isinstance(material_index, int)
+                and 0 <= material_index < len(materials)
+                else 0
+                for material_index in material_indices
+            ]
+            mesh_data.polygons.foreach_set("material_index", safe_material_indices)
         elif len(material_indices) > len(faces):
             print(
                 f"Object {name} has {len(faces)} faces but {len(material_indices)} semantic surfaces!"
@@ -190,7 +216,7 @@ def create_mesh_object(
 
         mesh_data.update()
 
-    new_object = bpy.data.objects.new(name, mesh_data)
+    new_object = bpy.data.objects.new(blender_safe_name(name), mesh_data)
 
     return new_object
 
@@ -336,15 +362,15 @@ def write_vertices_to_cityjson(
         )
         x = round(
             (x - bpy.context.scene.world["transform.X_translate"])
-            / bpy.context.scene.world["transform.X_scale"]
+            / (bpy.context.scene.world["transform.X_scale"] or 1)
         )
         y = round(
             (y - bpy.context.scene.world["transform.Y_translate"])
-            / bpy.context.scene.world["transform.Y_scale"]
+            / (bpy.context.scene.world["transform.Y_scale"] or 1)
         )
         z = round(
             (z - bpy.context.scene.world["transform.Z_translate"])
-            / bpy.context.scene.world["transform.Z_scale"]
+            / (bpy.context.scene.world["transform.Z_scale"] or 1)
         )
         doc.vertices.append([x, y, z])
     elif "Axis_Origin_X_translation" in bpy.context.scene.world:
@@ -441,8 +467,8 @@ def export_parent_child(doc: CityJSONDocument) -> None:
     print("\nSaving parents-children relations...")
     for city_object in bpy.data.objects:
         if city_object.parent and city_object.type == "EMPTY":
-            parent_id = city_object.parent.name
-            child_id = city_object.name
+            parent_id = get_cityjson_id(city_object.parent)
+            child_id = get_cityjson_id(city_object)
             parent_co = doc.city_objects.get(parent_id)
             child_co = doc.city_objects.get(child_id)
             if (

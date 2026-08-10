@@ -12,12 +12,23 @@ dependencies = [
 dev = [
     "mypy>=1.18.2",
     "pytest>=8.0",
+    "pytest-cov>=6.0",
     "ruff>=0.16.2",
 ]
 
 [tool.pytest.ini_options]
 pythonpath = ["."]
 testpaths = ["tests"]
+
+[tool.coverage.run]
+branch = true
+omit = [".venv/*", "tests/*"]
+source = ["."]
+
+[tool.coverage.report]
+fail_under = 95
+show_missing = true
+skip_covered = true
 
 [tool.ruff.lint]
 extend-select = ["ANN", "I", "N"]
