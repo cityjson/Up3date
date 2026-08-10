@@ -3,19 +3,27 @@
 import json
 import sys
 import time
+from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Protocol, cast
 
 import bpy
 import idprop
 
+from ..models.city_objects import CITY_OBJECT_TYPES, GenericCityObject
 from ..models.cityjson import CityJSONDocument
-from ..models.cityobjects import CITYOBJECT_TYPES, GenericCityObject
-from ..models.geomprimitives import GEOMPRIMITIVE_TYPES, GeometrySemantics
+from ..models.geomprimitives import GEOMETRY_PRIMITIVE_TYPES, GeometrySemantics
+from .blender_types import (
+    BlenderObject,
+    PolygonCollection,
+    Vector,
+    VertexCollection,
+)
 from .material import (
     BasicMaterialFactory,
     CityObjectTypeMaterialFactory,
     ReuseMaterialFactory,
+    TypedCityObject,
 )
 from .utils import (
     assign_properties,
@@ -37,16 +45,38 @@ from .utils import (
 )
 
 
+class GeometryContainer(Protocol):
+    geometry: list[Any]
+
+
+class ParsedCityObject(TypedCityObject, Protocol):
+    parents: list[str]
+
+    def to_dict(self) -> dict[str, Any]: ...
+
+
+MaterialFactory = (
+    BasicMaterialFactory | ReuseMaterialFactory | CityObjectTypeMaterialFactory
+)
+
+
 class CityJSONParser:
     """Class that parses a CityJSON file to Blender"""
 
-    def __init__(self, filepath, material_type, reuse_materials=True, clear_scene=True):
+    def __init__(
+        self,
+        filepath: str,
+        material_type: str,
+        reuse_materials: bool = True,
+        clear_scene: bool = True,
+    ) -> None:
         self.filepath = filepath
         self.clear_scene = clear_scene
 
-        self.data = {}
+        self.data: dict[str, Any] = {}
         self.document: CityJSONDocument | None = None
-        self.vertices = []
+        self.vertices: Sequence[Sequence[float]] = ()
+        self.material_factory: MaterialFactory
 
         if material_type == "SURFACES":
             if reuse_materials:
@@ -56,25 +86,28 @@ class CityJSONParser:
         else:
             self.material_factory = CityObjectTypeMaterialFactory()
 
-    def load_data(self):
+    def load_data(self) -> None:
         """Loads the CityJSON data from the file"""
 
         with open(self.filepath) as json_file:
             self.data = json.load(json_file)
         self.document = CityJSONDocument.from_dict(self.data)
 
-    def prepare_vertices(self):
+    def prepare_vertices(self) -> None:
         """Prepares the vertices by applying any required transformations"""
 
-        vertices = []
+        vertices: list[tuple[float, float, float]] = []
 
-        transform = self.document.transform if self.document else None
+        if self.document is None:
+            raise RuntimeError("CityJSON data must be loaded before preparing vertices")
+
+        transform = self.document.transform
 
         # Checking if coordinates need to be transformed and
         # transforming if necessary
         if transform is None:
             for vertex in self.document.vertices:
-                vertices.append(tuple(vertex))
+                vertices.append((float(vertex[0]), float(vertex[1]), float(vertex[2])))
         else:
             # Transforming coords to actual real world coords
             for vertex in self.document.vertices:
@@ -108,7 +141,9 @@ class CityJSONParser:
         # Updating vertices with new translated vertices
         self.vertices = translation[0]
 
-    def parse_geometry(self, theid: str, obj: dict, geom, index):
+    def parse_geometry(
+        self, theid: str, obj: ParsedCityObject, geom: Any, index: int
+    ) -> BlenderObject:
         """Returns a mesh object for the provided geometry"""
         bound = []
 
@@ -133,7 +168,7 @@ class CityJSONParser:
         temp_vertices, temp_bound = clean_buffer(self.vertices, bound)
 
         mats, values = self.material_factory.get_materials(
-            cityobject=obj, geometry=geom
+            city_object=obj, geometry=geom
         )
 
         geom_obj = create_mesh_object(
@@ -151,7 +186,7 @@ class CityJSONParser:
 
         return geom_obj
 
-    def execute(self):
+    def execute(self) -> set[str]:
         """Execute the import process"""
 
         if self.clear_scene:
@@ -163,31 +198,37 @@ class CityJSONParser:
 
         self.prepare_vertices()
 
+        if self.document is None:
+            raise RuntimeError("CityJSON data was not loaded")
+        doc = self.document
+
         # Storing the reference system
-        metadata = self.document.metadata
-        if metadata is not None and metadata.referenceSystem is not None:
-            bpy.context.scene.world["CRS"] = metadata.referenceSystem
+        metadata = doc.metadata
+        if metadata is not None and metadata.reference_system is not None:
+            bpy.context.scene.world["CRS"] = metadata.reference_system
 
         new_objects = []
-        cityobjs = {}
+        city_objects = {}
 
-        progress_max = len(self.document.CityObjects)
+        progress_max = len(doc.city_objects)
         progress = 0
         start_import = time.time()
 
         # Creating empty meshes for every CityObjects and linking its
         # geometries as children-meshes
-        for progress, (objid, obj) in enumerate(
-            self.document.CityObjects.items(), start=1
+        for progress, (objid, obj_value) in enumerate(
+            doc.city_objects.items(), start=1
         ):
-            cityobject = create_empty_object(objid)
-            cityobject = assign_properties(cityobject, obj.to_dict())
-            new_objects.append(cityobject)
-            cityobjs[objid] = cityobject
+            obj = cast(ParsedCityObject, obj_value)
+            city_object = create_empty_object(objid)
+            city_object = assign_properties(city_object, obj.to_dict())
+            new_objects.append(city_object)
+            city_objects[objid] = city_object
 
-            for geometry_index, geometry in enumerate(obj.geometry):
+            geometry_owner = cast(GeometryContainer, obj_value)
+            for geometry_index, geometry in enumerate(geometry_owner.geometry):
                 geom_obj = self.parse_geometry(objid, obj, geometry, geometry_index)
-                geom_obj.parent = cityobject
+                geom_obj.parent = city_object
                 new_objects.append(geom_obj)
 
             percentage = progress / progress_max * 100
@@ -200,12 +241,13 @@ class CityJSONParser:
         # Assign child building parts to parent buildings.
         print("\nBuilding hierarchy...")
 
-        for progress, (objid, obj) in enumerate(
-            self.document.CityObjects.items(), start=1
+        for progress, (objid, obj_value) in enumerate(
+            doc.city_objects.items(), start=1
         ):
+            obj = cast(ParsedCityObject, obj_value)
             if obj.parents:
                 parent_id = obj.parents[0]
-                cityobjs[objid].parent = cityobjs[parent_id]
+                city_objects[objid].parent = city_objects[parent_id]
 
             percentage = progress / progress_max * 100
             print(f"Building hierarchy: {percentage:.1f}% completed", end="\r")
@@ -241,7 +283,12 @@ class CityJSONParser:
 
 
 class CityJSONExporter:
-    def __init__(self, filepath, check_for_duplicates=True, precision=3):
+    def __init__(
+        self,
+        filepath: str,
+        check_for_duplicates: bool = True,
+        precision: int = 3,
+    ) -> None:
         self.filepath = filepath
         self.check_for_duplicates = check_for_duplicates
         self.precision = precision
@@ -251,7 +298,9 @@ class CityJSONExporter:
         return CityJSONDocument()
 
     @staticmethod
-    def get_custom_properties(city_object, doc: CityJSONDocument, city_object_id: str):
+    def get_custom_properties(
+        city_object: BlenderObject, doc: CityJSONDocument, city_object_id: str
+    ) -> None:
         """Creates a typed CityObject in doc and populates all its attributes from Blender custom properties."""
         # Collect all custom properties first so we know the type before constructing
         co_type = "GenericCityObject"
@@ -262,23 +311,25 @@ class CityJSONExporter:
             if isinstance(val, idprop.types.IDPropertyArray):
                 val = val.to_list()
             split = key.split(".")
-            if split[0] == "type":
+            if split[0] == "type" and isinstance(val, str):
                 co_type = val
             else:
                 props.append((split, val))
 
-        cls = CITYOBJECT_TYPES.get(co_type, GenericCityObject)
+        city_object_class = CITY_OBJECT_TYPES.get(co_type, GenericCityObject)
 
         # Preserve any geometry already appended by a preceding MESH object
-        existing = doc.CityObjects.get(city_object_id)
+        existing = doc.city_objects.get(city_object_id)
         existing_geometry = (
-            existing.geometry if (existing is not None and hasattr(existing, "geometry")) else []
+            existing.geometry
+            if (existing is not None and hasattr(existing, "geometry"))
+            else []
         )
 
-        co = cls()
+        co = city_object_class()
         if hasattr(co, "geometry"):
             co.geometry = existing_geometry
-        doc.CityObjects[city_object_id] = co
+        doc.city_objects[city_object_id] = co
 
         # Apply collected properties to the typed CityObject
         for split, attribute in props:
@@ -293,7 +344,7 @@ class CityJSONExporter:
                 else:
                     co.members.append(attribute)
             elif split[0] == "geographicalExtent":
-                co.geographicalExtent = attribute
+                co.geographical_extent = attribute
             elif split[0] == "parents" and hasattr(co, "parents"):
                 if isinstance(attribute, list):
                     co.parents = attribute
@@ -302,7 +353,9 @@ class CityJSONExporter:
                     co.children = attribute
 
     @staticmethod
-    def create_mesh_structure(city_object, objid: str, doc: CityJSONDocument):
+    def create_mesh_structure(
+        city_object: BlenderObject, objid: str, doc: CityJSONDocument
+    ) -> tuple[str, VertexCollection, PolygonCollection]:
         """Creates a typed geometry object and attaches it to the correct CityObject in doc."""
         city_object_id = objid.split(" ")[2]
 
@@ -325,35 +378,39 @@ class CityJSONExporter:
             )
             sys.exit(None)
 
-        geom_cls = GEOMPRIMITIVE_TYPES[co_type]
-        geom = geom_cls(lod=city_object["lod"])
+        geometry_class = GEOMETRY_PRIMITIVE_TYPES[co_type]
+        geom = geometry_class(lod=city_object["lod"])
         if city_object.data.materials:
             geom.semantics = GeometrySemantics(surfaces=[], values=[[]])
 
         # Create a GenericCityObject placeholder if the EMPTY hasn't been processed yet
-        if city_object_id not in doc.CityObjects:
-            doc.CityObjects[city_object_id] = GenericCityObject()
+        if city_object_id not in doc.city_objects:
+            doc.city_objects[city_object_id] = GenericCityObject()
 
-        doc.CityObjects[city_object_id].geometry.append(geom)
+        city_object_model = cast(GeometryContainer, doc.city_objects[city_object_id])
+        city_object_model.geometry.append(geom)
 
         return city_object_id, city_object.data.vertices, city_object.data.polygons
 
     @staticmethod
     def export_geometry_and_semantics(
-        city_object,
+        city_object: BlenderObject,
         doc: CityJSONDocument,
         city_object_id: str,
-        object_faces,
-        object_verts,
-        vertices,
+        object_faces: PolygonCollection,
+        object_verts: VertexCollection,
+        vertices: list[Vector],
         cj_next_index: int,
     ) -> int:
         # Index in the geometry list that the new geometry needs to be stored
-        index = len(doc.CityObjects[city_object_id].geometry) - 1
-        geom = doc.CityObjects[city_object_id].geometry[index]
+        city_object_model = cast(GeometryContainer, doc.city_objects[city_object_id])
+        index = len(city_object_model.geometry) - 1
+        geom = city_object_model.geometry[index]
 
         # Create semantic surfaces
-        semantic_surfaces = store_semantic_surfaces(doc, city_object, index, city_object_id)
+        semantic_surfaces = store_semantic_surfaces(
+            doc, city_object, index, city_object_id
+        )
 
         if city_object["type"] in ("MultiSurface", "CompositeSurface"):
             for face in object_faces:
@@ -396,16 +453,17 @@ class CityJSONExporter:
 
         return cj_next_index
 
-    def execute(self):
+    def execute(self) -> set[str]:
         start = time.time()
         print("\nExporting Blender scene into CityJSON file...")
 
         doc = self.initialize_document()
         progress_max = len(bpy.data.objects)
         cj_next_index = 0
-        verts = []
+        verts: list[Vector] = []
 
-        for progress, city_object in enumerate(bpy.data.objects, start=1):
+        objects = cast(Iterable[BlenderObject], bpy.data.objects)
+        for progress, city_object in enumerate(objects, start=1):
             objid = city_object.name
 
             # Empty objects contain the CityJSON attributes.

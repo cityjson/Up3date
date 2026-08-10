@@ -1,9 +1,9 @@
-"""Tests for models/cityobjects.py — CityJSON 2.0.2 CityObject types."""
+"""Tests for models/city_objects.py — CityJSON 2.0.2 city-object types."""
 
 import pytest
 
-from models.cityobjects import (
-    CITYOBJECT_TYPES,
+from models.city_objects import (
+    CITY_OBJECT_TYPES,
     Address,
     Bridge,
     BridgeConstructiveElement,
@@ -39,14 +39,14 @@ from models.cityobjects import (
     TunnelPart,
     WaterBody,
     Waterway,
-    cityobject_from_dict,
+    city_object_from_dict,
 )
 from models.geomprimitives import MultiSurface, Solid
-
 
 # ---------------------------------------------------------------------------
 # Address
 # ---------------------------------------------------------------------------
+
 
 class TestAddress:
     def test_empty(self):
@@ -77,13 +77,14 @@ class TestAddress:
 # _AbstractCityObject — base fields
 # ---------------------------------------------------------------------------
 
+
 class TestAbstractCityObjectBaseFields:
     def test_defaults(self):
         b = Building()
         assert b.attributes == {}
         assert b.parents == []
         assert b.children == []
-        assert b.geographicalExtent is None
+        assert b.geographical_extent is None
 
     def test_from_dict_base_fields(self):
         raw = {
@@ -98,7 +99,7 @@ class TestAbstractCityObjectBaseFields:
         assert b.attributes == {"height": 10.0}
         assert b.parents == ["p1"]
         assert b.children == ["c1", "c2"]
-        assert b.geographicalExtent == [0.0, 0.0, 0.0, 1.0, 1.0, 10.0]
+        assert b.geographical_extent == [0.0, 0.0, 0.0, 1.0, 1.0, 10.0]
 
     def test_to_dict_omits_empty_base_fields(self):
         b = Building()
@@ -112,6 +113,7 @@ class TestAbstractCityObjectBaseFields:
 # ---------------------------------------------------------------------------
 # Building family
 # ---------------------------------------------------------------------------
+
 
 class TestBuilding:
     def test_type_literal(self):
@@ -200,6 +202,7 @@ class TestBuildingStorey:
 # Tunnel family
 # ---------------------------------------------------------------------------
 
+
 class TestTunnel:
     def test_type_literal(self):
         assert Tunnel().type == "Tunnel"
@@ -242,6 +245,7 @@ class TestTunnelHollowSpace:
 # Bridge family
 # ---------------------------------------------------------------------------
 
+
 class TestBridge:
     def test_type_literal(self):
         assert Bridge().type == "Bridge"
@@ -282,13 +286,17 @@ class TestBridgeRoom:
 # Transportation
 # ---------------------------------------------------------------------------
 
+
 class TestTransportation:
-    @pytest.mark.parametrize("cls,type_str", [
-        (Road, "Road"),
-        (Railway, "Railway"),
-        (TransportSquare, "TransportSquare"),
-        (Waterway, "Waterway"),
-    ])
+    @pytest.mark.parametrize(
+        "cls,type_str",
+        [
+            (Road, "Road"),
+            (Railway, "Railway"),
+            (TransportSquare, "TransportSquare"),
+            (Waterway, "Waterway"),
+        ],
+    )
     def test_type_literals(self, cls, type_str):
         assert cls().type == type_str
 
@@ -296,6 +304,7 @@ class TestTransportation:
 # ---------------------------------------------------------------------------
 # Vegetation
 # ---------------------------------------------------------------------------
+
 
 class TestVegetation:
     def test_solitary_vegetation_object(self):
@@ -308,6 +317,7 @@ class TestVegetation:
 # ---------------------------------------------------------------------------
 # Environment
 # ---------------------------------------------------------------------------
+
 
 class TestEnvironment:
     def test_water_body(self):
@@ -324,9 +334,12 @@ class TestEnvironment:
 
     def test_tin_relief_geometry_is_composite_surface(self):
         from models.geomprimitives import CompositeSurface
+
         raw = {
             "type": "TINRelief",
-            "geometry": [{"type": "CompositeSurface", "lod": "1", "boundaries": [[[0, 1, 2]]]}],
+            "geometry": [
+                {"type": "CompositeSurface", "lod": "1", "boundaries": [[[0, 1, 2]]]}
+            ],
         }
         obj = TINRelief.from_dict(raw)
         assert isinstance(obj.geometry[0], CompositeSurface)
@@ -335,6 +348,7 @@ class TestEnvironment:
 # ---------------------------------------------------------------------------
 # Generic types
 # ---------------------------------------------------------------------------
+
 
 class TestGenericTypes:
     def test_other_construction(self):
@@ -347,6 +361,7 @@ class TestGenericTypes:
 # ---------------------------------------------------------------------------
 # CityObjectGroup
 # ---------------------------------------------------------------------------
+
 
 class TestCityObjectGroup:
     def test_type_literal(self):
@@ -393,6 +408,7 @@ class TestCityObjectGroup:
 # ExtensionObject
 # ---------------------------------------------------------------------------
 
+
 class TestExtensionObject:
     def test_from_dict(self):
         eo = ExtensionObject.from_dict({"type": "+MyExtension"})
@@ -403,49 +419,74 @@ class TestExtensionObject:
 
 
 # ---------------------------------------------------------------------------
-# CITYOBJECT_TYPES dispatch table
+# CITY_OBJECT_TYPES dispatch table
 # ---------------------------------------------------------------------------
+
 
 class TestCityObjectTypes:
     def test_covers_all_standard_types(self):
         expected = {
-            "Building", "BuildingPart", "BuildingInstallation", "BuildingConstructiveElement",
-            "BuildingFurniture", "BuildingRoom", "BuildingUnit", "BuildingStorey",
-            "Tunnel", "TunnelPart", "TunnelInstallation", "TunnelConstructiveElement",
-            "TunnelFurniture", "TunnelHollowSpace",
-            "Bridge", "BridgePart", "BridgeInstallation", "BridgeConstructiveElement",
-            "BridgeFurniture", "BridgeRoom",
-            "Road", "Railway", "TransportSquare", "Waterway",
-            "SolitaryVegetationObject", "PlantCover",
-            "WaterBody", "TINRelief", "LandUse", "CityFurniture", "OtherConstruction",
-            "GenericCityObject", "CityObjectGroup",
+            "Building",
+            "BuildingPart",
+            "BuildingInstallation",
+            "BuildingConstructiveElement",
+            "BuildingFurniture",
+            "BuildingRoom",
+            "BuildingUnit",
+            "BuildingStorey",
+            "Tunnel",
+            "TunnelPart",
+            "TunnelInstallation",
+            "TunnelConstructiveElement",
+            "TunnelFurniture",
+            "TunnelHollowSpace",
+            "Bridge",
+            "BridgePart",
+            "BridgeInstallation",
+            "BridgeConstructiveElement",
+            "BridgeFurniture",
+            "BridgeRoom",
+            "Road",
+            "Railway",
+            "TransportSquare",
+            "Waterway",
+            "SolitaryVegetationObject",
+            "PlantCover",
+            "WaterBody",
+            "TINRelief",
+            "LandUse",
+            "CityFurniture",
+            "OtherConstruction",
+            "GenericCityObject",
+            "CityObjectGroup",
         }
-        assert set(CITYOBJECT_TYPES.keys()) == expected
+        assert set(CITY_OBJECT_TYPES.keys()) == expected
 
 
 # ---------------------------------------------------------------------------
-# cityobject_from_dict factory
+# city_object_from_dict factory
 # ---------------------------------------------------------------------------
+
 
 class TestCityObjectFromDict:
     def test_building(self):
-        obj = cityobject_from_dict({"type": "Building", "geometry": []})
+        obj = city_object_from_dict({"type": "Building", "geometry": []})
         assert isinstance(obj, Building)
 
     def test_road(self):
-        obj = cityobject_from_dict({"type": "Road", "geometry": []})
+        obj = city_object_from_dict({"type": "Road", "geometry": []})
         assert isinstance(obj, Road)
 
     def test_extension_object(self):
-        obj = cityobject_from_dict({"type": "+MySuperObject"})
+        obj = city_object_from_dict({"type": "+MySuperObject"})
         assert isinstance(obj, ExtensionObject)
         assert obj.type == "+MySuperObject"
 
     def test_unknown_type_raises(self):
         with pytest.raises(ValueError, match="Unknown CityObject type"):
-            cityobject_from_dict({"type": "Banana"})
+            city_object_from_dict({"type": "Banana"})
 
-    @pytest.mark.parametrize("type_str", list(CITYOBJECT_TYPES.keys()))
+    @pytest.mark.parametrize("type_str", list(CITY_OBJECT_TYPES.keys()))
     def test_all_types_dispatch(self, type_str):
-        obj = cityobject_from_dict({"type": type_str, "geometry": []})
+        obj = city_object_from_dict({"type": type_str, "geometry": []})
         assert obj.type == type_str

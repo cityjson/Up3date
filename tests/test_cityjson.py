@@ -2,6 +2,7 @@
 
 import pytest
 
+from models.city_objects import Building
 from models.cityjson import (
     Appearance,
     CityJSON,
@@ -10,17 +11,18 @@ from models.cityjson import (
     Metadata,
     Transform,
 )
-from models.cityobjects import Building
 from models.geomprimitives import MultiSurface
-
 
 # ---------------------------------------------------------------------------
 # Transform
 # ---------------------------------------------------------------------------
 
+
 class TestTransform:
     def test_from_dict(self):
-        t = Transform.from_dict({"scale": [0.001, 0.001, 0.001], "translate": [1.0, 2.0, 3.0]})
+        t = Transform.from_dict(
+            {"scale": [0.001, 0.001, 0.001], "translate": [1.0, 2.0, 3.0]}
+        )
         assert t.scale == [0.001, 0.001, 0.001]
         assert t.translate == [1.0, 2.0, 3.0]
 
@@ -35,7 +37,9 @@ class TestTransform:
         assert Transform.from_dict(raw).to_dict() == raw
 
     def test_scale_length_three(self):
-        t = Transform.from_dict({"scale": [1.0, 2.0, 3.0], "translate": [0.0, 0.0, 0.0]})
+        t = Transform.from_dict(
+            {"scale": [1.0, 2.0, 3.0], "translate": [0.0, 0.0, 0.0]}
+        )
         assert len(t.scale) == 3
         assert len(t.translate) == 3
 
@@ -44,14 +48,15 @@ class TestTransform:
 # Metadata
 # ---------------------------------------------------------------------------
 
+
 class TestMetadata:
     def test_empty(self):
         m = Metadata()
-        assert m.geographicalExtent is None
+        assert m.geographical_extent is None
         assert m.identifier is None
-        assert m.pointOfContact is None
-        assert m.referenceDate is None
-        assert m.referenceSystem is None
+        assert m.point_of_contact is None
+        assert m.reference_date is None
+        assert m.reference_system is None
         assert m.title is None
         assert m.extra == {}
 
@@ -61,13 +66,21 @@ class TestMetadata:
             "geographicalExtent": [0.0, 0.0, 0.0, 1.0, 1.0, 10.0],
         }
         m = Metadata.from_dict(raw)
-        assert m.referenceSystem == "https://www.opengis.net/def/crs/EPSG/0/7415"
-        assert m.geographicalExtent == [0.0, 0.0, 0.0, 1.0, 1.0, 10.0]
+        assert m.reference_system == "https://www.opengis.net/def/crs/EPSG/0/7415"
+        assert m.geographical_extent == [0.0, 0.0, 0.0, 1.0, 1.0, 10.0]
 
     def test_from_dict_point_of_contact(self):
-        raw = {"pointOfContact": {"contactName": "Jane", "emailAddress": "jane@example.com"}}
+        raw = {
+            "pointOfContact": {
+                "contactName": "Jane",
+                "emailAddress": "jane@example.com",
+            }
+        }
         m = Metadata.from_dict(raw)
-        assert m.pointOfContact == {"contactName": "Jane", "emailAddress": "jane@example.com"}
+        assert m.point_of_contact == {
+            "contactName": "Jane",
+            "emailAddress": "jane@example.com",
+        }
 
     def test_from_dict_all_named_fields(self):
         raw = {
@@ -77,7 +90,7 @@ class TestMetadata:
         }
         m = Metadata.from_dict(raw)
         assert m.identifier == "abc-123"
-        assert m.referenceDate == "2024-01-01"
+        assert m.reference_date == "2024-01-01"
         assert m.title == "Test Dataset"
         assert m.extra == {}
 
@@ -95,7 +108,7 @@ class TestMetadata:
         assert "pointOfContact" not in d
 
     def test_to_dict_includes_named_fields(self):
-        m = Metadata(title="Test", identifier="id-1", referenceDate="2024-01-01")
+        m = Metadata(title="Test", identifier="id-1", reference_date="2024-01-01")
         d = m.to_dict()
         assert d["title"] == "Test"
         assert d["identifier"] == "id-1"
@@ -121,6 +134,7 @@ class TestMetadata:
 # ---------------------------------------------------------------------------
 # Appearance
 # ---------------------------------------------------------------------------
+
 
 class TestAppearance:
     def test_defaults(self):
@@ -176,6 +190,7 @@ class TestAppearance:
 # GeometryTemplates
 # ---------------------------------------------------------------------------
 
+
 class TestGeometryTemplates:
     def test_defaults(self):
         gt = GeometryTemplates()
@@ -206,7 +221,9 @@ class TestGeometryTemplates:
 
     def test_roundtrip(self):
         raw = {
-            "templates": [{"type": "MultiSurface", "lod": "1", "boundaries": [[[[0, 1, 2]]]]}],
+            "templates": [
+                {"type": "MultiSurface", "lod": "1", "boundaries": [[[[0, 1, 2]]]]}
+            ],
             "vertices-templates": [[0.0, 0.0, 0.0]],
         }
         result = GeometryTemplates.from_dict(raw).to_dict()
@@ -217,12 +234,13 @@ class TestGeometryTemplates:
 # CityJSONDocument
 # ---------------------------------------------------------------------------
 
+
 class TestCityJSONDocument:
     def test_defaults(self):
         doc = CityJSONDocument()
         assert doc.type == "CityJSON"
         assert doc.version == "2.0"
-        assert doc.CityObjects == {}
+        assert doc.city_objects == {}
         assert doc.vertices == []
         assert doc.transform is None
         assert doc.metadata is None
@@ -241,7 +259,7 @@ class TestCityJSONDocument:
         doc = CityJSONDocument.from_dict(minimal_dict)
         assert doc.type == "CityJSON"
         assert doc.version == "2.0"
-        assert len(doc.CityObjects) == 2
+        assert len(doc.city_objects) == 2
         assert len(doc.vertices) == 8
 
     def test_from_dict_transform(self, minimal_dict):
@@ -253,11 +271,11 @@ class TestCityJSONDocument:
     def test_from_dict_metadata(self, minimal_dict):
         doc = CityJSONDocument.from_dict(minimal_dict)
         assert doc.metadata is not None
-        assert "EPSG" in doc.metadata.referenceSystem
+        assert "EPSG" in doc.metadata.reference_system
 
-    def test_from_dict_cityobjects_typed(self, minimal_dict):
+    def test_from_dict_city_objects_typed(self, minimal_dict):
         doc = CityJSONDocument.from_dict(minimal_dict)
-        assert isinstance(doc.CityObjects["building-1"], Building)
+        assert isinstance(doc.city_objects["building-1"], Building)
 
     def test_from_dict_no_transform(self):
         raw = {"type": "CityJSON", "version": "2.0", "CityObjects": {}, "vertices": []}
@@ -268,7 +286,11 @@ class TestCityJSONDocument:
         doc = CityJSONDocument.from_dict(templates_dict)
         assert doc.geometry_templates is not None
         assert len(doc.geometry_templates.templates) == 1
-        assert doc.geometry_templates.vertices_templates == [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.5, 1.0, 0.0]]
+        assert doc.geometry_templates.vertices_templates == [
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.5, 1.0, 0.0],
+        ]
 
     def test_from_dict_appearance(self, appearance_dict):
         doc = CityJSONDocument.from_dict(appearance_dict)
@@ -296,7 +318,9 @@ class TestCityJSONDocument:
         assert "extensions" not in d
 
     def test_to_dict_includes_extensions_when_set(self):
-        doc = CityJSONDocument(extensions={"myExt": {"url": "https://example.com", "version": "1.0"}})
+        doc = CityJSONDocument(
+            extensions={"myExt": {"url": "https://example.com", "version": "1.0"}}
+        )
         d = doc.to_dict()
         assert "extensions" in d
 

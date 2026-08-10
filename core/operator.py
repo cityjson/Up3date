@@ -1,12 +1,14 @@
 import bpy
 
+from .blender_types import BlenderContext
+
 
 class Up3dateCityJsonfy(bpy.types.Operator):
     bl_idname = "cityjson.cityjsonfy"
     bl_label = "Convert to cityjson"
     bl_context = "scene"
 
-    def execute(self, context):
+    def execute(self, context: BlenderContext) -> set[str]:
         scene = context.scene
         props = scene.cityjsonfy_properties
 

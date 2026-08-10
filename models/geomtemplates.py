@@ -24,15 +24,15 @@ class GeometryInstance:
     # exactly one vertex index -- the anchor point the template is placed at
     boundaries: list[int] = field(default_factory=list)  # len == 1
     # 4x4 transformation matrix, flattened row-major, exactly 16 numbers
-    transformationMatrix: list[float] = field(default_factory=list)  # len == 16
+    transformation_matrix: list[float] = field(default_factory=list)  # len == 16
     type: Literal["GeometryInstance"] = "GeometryInstance"
 
     @classmethod
-    def from_dict(cls, data: dict) -> "GeometryInstance":
+    def from_dict(cls, data: dict) -> GeometryInstance:
         return cls(
             template=data["template"],
             boundaries=data.get("boundaries", []),
-            transformationMatrix=data.get("transformationMatrix", []),
+            transformation_matrix=data.get("transformationMatrix", []),
         )
 
     def to_dict(self) -> dict:
@@ -40,5 +40,5 @@ class GeometryInstance:
             "type": self.type,
             "template": self.template,
             "boundaries": self.boundaries,
-            "transformationMatrix": self.transformationMatrix,
+            "transformationMatrix": self.transformation_matrix,
         }

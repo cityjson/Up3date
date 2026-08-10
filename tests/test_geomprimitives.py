@@ -3,7 +3,7 @@
 import pytest
 
 from models.geomprimitives import (
-    GEOMPRIMITIVE_TYPES,
+    GEOMETRY_PRIMITIVE_TYPES,
     CompositeSolid,
     CompositeSurface,
     GeometrySemantics,
@@ -18,10 +18,10 @@ from models.geomprimitives import (
     geom_primitive_from_dict,
 )
 
-
 # ---------------------------------------------------------------------------
 # Semantics
 # ---------------------------------------------------------------------------
+
 
 class TestSemantics:
     def test_basic(self):
@@ -54,6 +54,7 @@ class TestSemantics:
 # ---------------------------------------------------------------------------
 # GeometrySemantics
 # ---------------------------------------------------------------------------
+
 
 class TestGeometrySemantics:
     def test_empty(self):
@@ -89,6 +90,7 @@ class TestGeometrySemantics:
 # MaterialValue
 # ---------------------------------------------------------------------------
 
+
 class TestMaterialValue:
     def test_value_only(self):
         mv = MaterialValue.from_dict({"value": 3})
@@ -106,6 +108,7 @@ class TestMaterialValue:
 # TextureTheme
 # ---------------------------------------------------------------------------
 
+
 class TestTextureTheme:
     def test_roundtrip(self):
         raw = {"values": [[[0, 1], None], [[2, 3]]]}
@@ -116,6 +119,7 @@ class TestTextureTheme:
 # ---------------------------------------------------------------------------
 # MultiPoint
 # ---------------------------------------------------------------------------
+
 
 class TestMultiPoint:
     def test_type_literal(self):
@@ -143,6 +147,7 @@ class TestMultiPoint:
 # MultiLineString
 # ---------------------------------------------------------------------------
 
+
 class TestMultiLineString:
     def test_type_literal(self):
         mls = MultiLineString(lod="0")
@@ -161,6 +166,7 @@ class TestMultiLineString:
 # ---------------------------------------------------------------------------
 # MultiSurface
 # ---------------------------------------------------------------------------
+
 
 class TestMultiSurface:
     def test_type_literal(self):
@@ -221,6 +227,7 @@ class TestMultiSurface:
 # CompositeSurface
 # ---------------------------------------------------------------------------
 
+
 class TestCompositeSurface:
     def test_type_literal(self):
         cs = CompositeSurface(lod="2")
@@ -234,6 +241,7 @@ class TestCompositeSurface:
 # ---------------------------------------------------------------------------
 # Solid
 # ---------------------------------------------------------------------------
+
 
 class TestSolid:
     def test_type_literal(self):
@@ -265,6 +273,7 @@ class TestSolid:
 # CompositeSolid
 # ---------------------------------------------------------------------------
 
+
 class TestCompositeSolid:
     def test_type_literal(self):
         cs = CompositeSolid(lod="3")
@@ -284,6 +293,7 @@ class TestCompositeSolid:
 # MultiSolid
 # ---------------------------------------------------------------------------
 
+
 class TestMultiSolid:
     def test_type_literal(self):
         ms = MultiSolid(lod="3")
@@ -295,37 +305,47 @@ class TestMultiSolid:
 
 
 # ---------------------------------------------------------------------------
-# GEOMPRIMITIVE_TYPES dispatch table
+# GEOMETRY_PRIMITIVE_TYPES dispatch table
 # ---------------------------------------------------------------------------
+
 
 class TestGeomPrimitiveTypes:
     def test_all_seven_keys(self):
         expected = {
-            "MultiPoint", "MultiLineString", "MultiSurface", "CompositeSurface",
-            "Solid", "CompositeSolid", "MultiSolid",
+            "MultiPoint",
+            "MultiLineString",
+            "MultiSurface",
+            "CompositeSurface",
+            "Solid",
+            "CompositeSolid",
+            "MultiSolid",
         }
-        assert set(GEOMPRIMITIVE_TYPES.keys()) == expected
+        assert set(GEOMETRY_PRIMITIVE_TYPES.keys()) == expected
 
     def test_types_are_correct_classes(self):
-        assert GEOMPRIMITIVE_TYPES["MultiSurface"] is MultiSurface
-        assert GEOMPRIMITIVE_TYPES["Solid"] is Solid
-        assert GEOMPRIMITIVE_TYPES["CompositeSolid"] is CompositeSolid
+        assert GEOMETRY_PRIMITIVE_TYPES["MultiSurface"] is MultiSurface
+        assert GEOMETRY_PRIMITIVE_TYPES["Solid"] is Solid
+        assert GEOMETRY_PRIMITIVE_TYPES["CompositeSolid"] is CompositeSolid
 
 
 # ---------------------------------------------------------------------------
 # geom_primitive_from_dict factory
 # ---------------------------------------------------------------------------
 
+
 class TestGeomPrimitiveFromDict:
-    @pytest.mark.parametrize("type_str,cls", [
-        ("MultiPoint", MultiPoint),
-        ("MultiLineString", MultiLineString),
-        ("MultiSurface", MultiSurface),
-        ("CompositeSurface", CompositeSurface),
-        ("Solid", Solid),
-        ("CompositeSolid", CompositeSolid),
-        ("MultiSolid", MultiSolid),
-    ])
+    @pytest.mark.parametrize(
+        "type_str,cls",
+        [
+            ("MultiPoint", MultiPoint),
+            ("MultiLineString", MultiLineString),
+            ("MultiSurface", MultiSurface),
+            ("CompositeSurface", CompositeSurface),
+            ("Solid", Solid),
+            ("CompositeSolid", CompositeSolid),
+            ("MultiSolid", MultiSolid),
+        ],
+    )
     def test_dispatch(self, type_str, cls):
         raw = {"type": type_str, "lod": "1", "boundaries": []}
         obj = geom_primitive_from_dict(raw)
@@ -333,4 +353,6 @@ class TestGeomPrimitiveFromDict:
 
     def test_unknown_type_raises(self):
         with pytest.raises(ValueError, match="Unknown geometry type"):
-            geom_primitive_from_dict({"type": "WeirdThing", "lod": "1", "boundaries": []})
+            geom_primitive_from_dict(
+                {"type": "WeirdThing", "lod": "1", "boundaries": []}
+            )

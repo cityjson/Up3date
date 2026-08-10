@@ -4,11 +4,19 @@ This module provides a set of factory classes to create materials
 based on the semantics of the CityJSON file.
 """
 
-from typing import ClassVar
+from typing import ClassVar, Protocol, cast
 
 import bpy
 
+from ..models.geomprimitives import GeometryPrimitive, Semantics
+from .blender_types import BlenderMaterial
 from .utils import assign_properties, clean_list
+
+Color = tuple[float, float, float, float]
+
+
+class TypedCityObject(Protocol):
+    type: str
 
 
 class BasicMaterialFactory:
@@ -20,9 +28,9 @@ class BasicMaterialFactory:
         "GroundSurface": (0.507, 0.233, 0.036, 1.0),
     }
 
-    default_color = (0, 0, 0, 1)
+    default_color: ClassVar[Color] = (0, 0, 0, 1)
 
-    def get_surface_color(self, surface_type):
+    def get_surface_color(self, surface_type: str) -> Color:
         """Returns the material color of the appropriate surface type"""
 
         if surface_type in self.material_colors:
@@ -30,7 +38,7 @@ class BasicMaterialFactory:
 
         return self.default_color
 
-    def create_material(self, surface):
+    def create_material(self, surface: Semantics) -> BlenderMaterial:
         """Returns a new material based on the semantic surface of the object"""
         mat = bpy.data.materials.new(name=surface.type)
 
@@ -40,24 +48,30 @@ class BasicMaterialFactory:
 
         return mat
 
-    def get_material(self, surface):
+    def get_material(self, surface: Semantics) -> BlenderMaterial:
         """Returns the material that corresponds to the semantic surface"""
 
         return self.create_material(surface)
 
-    def get_materials(self, geometry=None, **params):
+    def get_materials(
+        self,
+        geometry: GeometryPrimitive | None = None,
+        city_object: TypedCityObject | None = None,
+    ) -> tuple[list[BlenderMaterial], list[int | None]]:
         """Returns the materials and material index list for the given
         geometry
         """
-        mats = []
-        values = []
+        mats: list[BlenderMaterial] = []
+        values: list[int | None] = []
+        if geometry is None:
+            return mats, values
         if geometry.semantics is not None:
-            values = geometry.semantics.values
+            values = cast(list[int | None], geometry.semantics.values)
 
             for surface in geometry.semantics.surfaces:
                 mats.append(self.get_material(surface))
 
-            values = clean_list(values)
+            values = cast(list[int | None], clean_list(values))
 
         return mats, values
 
@@ -66,7 +80,7 @@ class ReuseMaterialFactory(BasicMaterialFactory):
     """A class that re-uses a material with similar semantics"""
 
     @staticmethod
-    def check_material(material, surface):
+    def check_material(material: BlenderMaterial, surface: Semantics) -> bool:
         """Checks if the material can represent the provided surface"""
 
         if not material.name.startswith(surface.type):  # noqa: SIM103
@@ -76,7 +90,7 @@ class ReuseMaterialFactory(BasicMaterialFactory):
 
         return True
 
-    def get_material(self, surface):
+    def get_material(self, surface: Semantics) -> BlenderMaterial:
         """Returns the material that corresponds to the semantic surface"""
 
         matches = [m for m in bpy.data.materials if self.check_material(m, surface)]
@@ -102,10 +116,10 @@ class CityObjectTypeMaterialFactory:
         "WaterBody": (54 / 255, 197 / 255, 214 / 255, 1.0),
     }
 
-    default_color = (0.3, 0.3, 0.3, 1)
+    default_color: ClassVar[Color] = (0.3, 0.3, 0.3, 1)
 
     @staticmethod
-    def create_material(name, color):
+    def create_material(name: str, color: Color) -> BlenderMaterial:
         """Returns a new material based on the semantic surface of the object"""
         mat = bpy.data.materials.new(name=name)
 
@@ -113,7 +127,7 @@ class CityObjectTypeMaterialFactory:
 
         return mat
 
-    def get_type_color(self, object_type):
+    def get_type_color(self, object_type: str) -> Color:
         """Returns the color that corresponds to the provided city object type"""
 
         if object_type in self.type_color:
@@ -121,7 +135,7 @@ class CityObjectTypeMaterialFactory:
 
         return self.default_color
 
-    def get_material(self, object_type):
+    def get_material(self, object_type: str) -> BlenderMaterial:
         """Returns the material that corresponds to the provided
         object type
         """
@@ -131,9 +145,15 @@ class CityObjectTypeMaterialFactory:
 
         return self.create_material(object_type, self.get_type_color(object_type))
 
-    def get_materials(self, cityobject=None, **params):
+    def get_materials(
+        self,
+        geometry: GeometryPrimitive | None = None,
+        city_object: TypedCityObject | None = None,
+    ) -> tuple[list[BlenderMaterial], list[int | None]]:
         """Returns the materials and material index list for the given
         geometry
         """
 
-        return ([self.get_material(cityobject.type)], [])
+        if city_object is None:
+            return ([], [])
+        return ([self.get_material(city_object.type)], [])

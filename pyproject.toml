@@ -10,6 +10,7 @@ dependencies = [
 
 [dependency-groups]
 dev = [
+    "mypy>=1.18.2",
     "pytest>=8.0",
     "ruff>=0.16.2",
 ]
@@ -19,4 +20,35 @@ pythonpath = ["."]
 testpaths = ["tests"]
 
 [tool.ruff.lint]
-ignore = ["N999"]
+extend-select = ["ANN", "I", "N"]
+ignore = ["ANN401"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["N999"]
+"tests/**" = ["ANN"]
+
+[tool.mypy]
+python_version = "3.13"
+files = ["__init__.py", "addon.py", "core", "models"]
+check_untyped_defs = true
+disallow_untyped_defs = true
+ignore_missing_imports = true
+no_implicit_optional = true
+show_error_codes = true
+warn_redundant_casts = true
+warn_unused_configs = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = ["Up3date.addon", "Up3date.core.prop"]
+disable_error_code = ["valid-type"]
+disallow_any_explicit = true
+
+[[tool.mypy.overrides]]
+module = [
+    "Up3date.core.blender_types",
+    "Up3date.core.material",
+    "Up3date.core.operator",
+    "Up3date.core.ui",
+]
+disallow_any_explicit = true

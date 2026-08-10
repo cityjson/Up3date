@@ -4,16 +4,31 @@ This modules provides utility methods for the importing/exporting
 processing of CityJSON files
 """
 
+from collections.abc import Sequence
+from typing import Any, Protocol, cast
+
 import bpy
 
 from ..models.cityjson import CityJSONDocument, Metadata, Transform
-from ..models.cityobjects import _AbstractCityObject
 from ..models.geomprimitives import Semantics
+from .blender_types import (
+    BlenderCollection,
+    BlenderMaterial,
+    BlenderObject,
+    BlenderPolygon,
+    CustomPropertyOwner,
+    Vector,
+)
+
+
+class GeometryOwner(Protocol):
+    geometry: list[Any]
+
 
 ########## Importer functions ##########
 
 
-def remove_scene_objects():
+def remove_scene_objects() -> None:
     """Clears the scenes of any objects and removes world's custom properties
     and collections"""
     # Delete world custom properties
@@ -28,7 +43,7 @@ def remove_scene_objects():
         bpy.data.collections.remove(collection)
 
 
-def clean_list(values):
+def clean_list(values: list[Any]) -> list[Any]:
     """Creates a list of non list in case lists nested in lists exist"""
 
     while isinstance(values[0], list):
@@ -37,7 +52,9 @@ def clean_list(values):
     return values
 
 
-def assign_properties(obj, props, prefix=None):
+def assign_properties[PropertyOwner: CustomPropertyOwner](
+    obj: PropertyOwner, props: dict[str, Any], prefix: list[str] | None = None
+) -> PropertyOwner:
     """Assigns the custom properties to obj based on the props"""
 
     if prefix is None:
@@ -56,7 +73,9 @@ def assign_properties(obj, props, prefix=None):
     return obj
 
 
-def coord_translate_axis_origin(vertices):
+def coord_translate_axis_origin(
+    vertices: Sequence[Sequence[float]],
+) -> tuple[tuple[tuple[float, float, float], ...], float, float, float]:
     """Translates the vertices to the origin (0, 0, 0)"""
     # Finding minimum value of x,y,z
     minx = min(i[0] for i in vertices)
@@ -66,7 +85,9 @@ def coord_translate_axis_origin(vertices):
     return coord_translate_by_offset(vertices, minx, miny, minz)
 
 
-def coord_translate_by_offset(vertices, offx, offy, offz):
+def coord_translate_by_offset(
+    vertices: Sequence[Sequence[float]], offx: float, offy: float, offz: float
+) -> tuple[tuple[tuple[float, float, float], ...], float, float, float]:
     """Translates the vertices by minx, miny and minz"""
     # Calculating new coordinates
     translated_x = [i[0] - offx for i in vertices]
@@ -76,7 +97,9 @@ def coord_translate_by_offset(vertices, offx, offy, offz):
     return (tuple(zip(translated_x, translated_y, translated_z)), offx, offy, offz)
 
 
-def original_coordinates(vertices, minx, miny, minz):
+def original_coordinates(
+    vertices: Sequence[Sequence[float]], minx: float, miny: float, minz: float
+) -> tuple[tuple[float, float, float], ...]:
     """Translates the vertices from origin to original"""
     # Calculating original coordinates
     original_x = [i[0] + minx for i in vertices]
@@ -86,7 +109,9 @@ def original_coordinates(vertices, minx, miny, minz):
     return tuple(zip(original_x, original_y, original_z))
 
 
-def clean_buffer(vertices, bounds):
+def clean_buffer(
+    vertices: Sequence[Any], bounds: Sequence[Sequence[int]]
+) -> tuple[list[Any], list[tuple[int, ...]]]:
     """Cleans the vertex index buffer from unused vertices"""
 
     new_bounds = []
@@ -105,14 +130,14 @@ def clean_buffer(vertices, bounds):
     return new_vertices, new_bounds
 
 
-def get_geometry_name(objid, geom, index):
+def get_geometry_name(objid: str, geom: Any, index: int) -> str:
     """Returns the name of the provided geometry"""
     if geom.type == "GeometryInstance":
         return f"{index}: [GeometryInstance] {objid}"
     return f"{index}: [LoD{geom.lod}] {objid}"
 
 
-def create_empty_object(name):
+def create_empty_object(name: str) -> BlenderObject:
     """Returns an empty blender object"""
 
     new_object = bpy.data.objects.new(name, None)
@@ -120,7 +145,13 @@ def create_empty_object(name):
     return new_object
 
 
-def create_mesh_object(name, vertices, faces, materials: list, material_indices: list):
+def create_mesh_object(
+    name: str,
+    vertices: Sequence[Sequence[float]],
+    faces: Sequence[Sequence[int]],
+    materials: Sequence[BlenderMaterial],
+    material_indices: Sequence[int | None],
+) -> BlenderObject:
     """Returns a mesh blender object"""
 
     mesh_data = None
@@ -164,7 +195,7 @@ def create_mesh_object(name, vertices, faces, materials: list, material_indices:
     return new_object
 
 
-def get_collection(collection_name):
+def get_collection(collection_name: str) -> BlenderCollection:
     """Returns a collection with the given name"""
 
     if collection_name in bpy.data.collections:
@@ -179,18 +210,27 @@ def get_collection(collection_name):
 ########## Exporter functions ##########
 
 
-def store_semantic_surfaces(doc: CityJSONDocument, city_object, index: int, city_object_id: str):
+def store_semantic_surfaces(
+    doc: CityJSONDocument,
+    city_object: BlenderObject,
+    index: int,
+    city_object_id: str,
+) -> dict[str, int] | None:
     """Populates geometry semantics from Blender materials and returns a name→index lookup."""
     if not city_object.data.materials:
         return None
 
-    geom = doc.CityObjects[city_object_id].geometry[index]
+    city_object_model = cast(GeometryOwner, doc.city_objects[city_object_id])
+    geom = city_object_model.geometry[index]
     semantic_surface_lookup: dict[str, int] = {}
     semantic_surface_index = 0
     for material in city_object.data.materials:
         if material is None:
             continue
-        geom.semantics.surfaces.append(Semantics(type=material["type"]))
+        semantic_type = material["type"]
+        if not isinstance(semantic_type, str):
+            continue
+        geom.semantics.surfaces.append(Semantics(type=semantic_type))
         semantic_surface_lookup[material.name] = semantic_surface_index
         semantic_surface_index += 1
 
@@ -199,25 +239,28 @@ def store_semantic_surfaces(doc: CityJSONDocument, city_object, index: int, city
 
 def link_face_semantic_surface(
     doc: CityJSONDocument,
-    city_object,
+    city_object: BlenderObject,
     index: int,
     city_object_id: str,
-    semantic_surface_lookup,
-    face,
-):
+    semantic_surface_lookup: dict[str, int] | None,
+    face: BlenderPolygon,
+) -> None:
     """Links a mesh face to its corresponding semantic surface index."""
     if not city_object.data.materials:
         return
-    geom = doc.CityObjects[city_object_id].geometry[index]
-    if city_object.data.materials[face.material_index] is None:
+    city_object_model = cast(GeometryOwner, doc.city_objects[city_object_id])
+    geom = city_object_model.geometry[index]
+    material = city_object.data.materials[face.material_index]
+    if material is None:
         geom.semantics.values[0].append(None)
         return
 
-    name = city_object.data.materials[face.material_index].name
+    name = material.name
+    assert semantic_surface_lookup is not None
     geom.semantics.values[0].append(semantic_surface_lookup[name])
 
 
-def bbox(objects):
+def bbox(objects: Sequence[BlenderObject]) -> tuple[list[float], list[float]]:
     """Calculates the bounding box of the objects given"""
     # Initialization
     obj = objects[0]
@@ -276,7 +319,9 @@ def bbox(objects):
     return world_min_extent, world_max_extent
 
 
-def write_vertices_to_cityjson(city_object, vertex, doc: CityJSONDocument):
+def write_vertices_to_cityjson(
+    city_object: BlenderObject, vertex: Vector, doc: CityJSONDocument
+) -> None:
     """Writes a vertex to doc.vertices after translating to the original CRS position."""
     coord = city_object.matrix_world @ vertex
     if (
@@ -314,14 +359,14 @@ def write_vertices_to_cityjson(city_object, vertex, doc: CityJSONDocument):
         doc.vertices.append([coord[0], coord[1], coord[2]])
 
 
-def remove_vertex_duplicates(doc: CityJSONDocument, precision: int = 3):
+def remove_vertex_duplicates(doc: CityJSONDocument, precision: int = 3) -> int:
     """Finds all duplicate vertices within a given precision and merges them.
     Adapted from https://github.com/cityjson/cjio/blob/faf422afe94b4787aeffa9b2e53ee71b32546320/cjio/cityjson.py#L1208
     """
     if doc.transform is not None:
         precision = 0
 
-    def update_geom_indices(a, newids):
+    def update_geom_indices(a: list[Any], newids: list[int]) -> None:
         for i, each in enumerate(a):
             if isinstance(each, list):
                 update_geom_indices(each, newids)
@@ -332,9 +377,9 @@ def remove_vertex_duplicates(doc: CityJSONDocument, precision: int = 3):
     h: dict[str, int] = {}
     newids = [-1] * len(doc.vertices)
     newvertices: list[str] = []
-    for i, v in enumerate(doc.vertices):
+    for i, input_vertex in enumerate(doc.vertices):
         s = f"{{x:.{precision}f}} {{y:.{precision}f}} {{z:.{precision}f}}".format(
-            x=v[0], y=v[1], z=v[2]
+            x=input_vertex[0], y=input_vertex[1], z=input_vertex[2]
         )
         if s not in h:
             newid = len(h)
@@ -344,23 +389,24 @@ def remove_vertex_duplicates(doc: CityJSONDocument, precision: int = 3):
         else:
             newids[i] = h[s]
 
-    for co in doc.CityObjects.values():
+    for co_value in doc.city_objects.values():
+        co: Any = co_value
         if hasattr(co, "geometry"):
             for geom in co.geometry:
                 update_geom_indices(geom.boundaries, newids)
 
-    newv2 = []
-    for v in newvertices:
+    newv2: Any = []
+    for encoded_vertex in newvertices:
         if doc.transform is not None:
-            a = list(map(int, v.split()))
+            parsed_vertex: Any = list(map(int, encoded_vertex.split()))
         else:
-            a = list(map(float, v.split()))
-        newv2.append(a)
+            parsed_vertex = list(map(float, encoded_vertex.split()))
+        newv2.append(parsed_vertex)
     doc.vertices = newv2
     return totalinput - len(doc.vertices)
 
 
-def export_transformation_parameters(doc: CityJSONDocument):
+def export_transformation_parameters(doc: CityJSONDocument) -> None:
     """Reads the transform stored in scene world properties and sets doc.transform."""
     if "transformed" in bpy.context.scene.world:
         print("Exporting transformation parameters...")
@@ -378,30 +424,36 @@ def export_transformation_parameters(doc: CityJSONDocument):
         )
 
 
-def export_metadata(doc: CityJSONDocument):
+def export_metadata(doc: CityJSONDocument) -> None:
     """Computes and sets doc.metadata from scene world properties and object bounds."""
     print("Exporting metadata...")
     ref_sys = bpy.context.scene.world.get("CRS")
     minim, maxim = bbox(bpy.data.objects)
     extent = list(minim) + [round(c, 3) for c in maxim]
     doc.metadata = Metadata(
-        referenceSystem=ref_sys if ref_sys else None,
-        geographicalExtent=extent,
+        reference_system=ref_sys if ref_sys else None,
+        geographical_extent=extent,
     )
 
 
-def export_parent_child(doc: CityJSONDocument):
-    """Stores parent/child relationships in doc.CityObjects from the Blender hierarchy."""
+def export_parent_child(doc: CityJSONDocument) -> None:
+    """Stores parent/child relationships in doc.city_objects from Blender."""
     print("\nSaving parents-children relations...")
     for city_object in bpy.data.objects:
         if city_object.parent and city_object.type == "EMPTY":
             parent_id = city_object.parent.name
             child_id = city_object.name
-            parent_co = doc.CityObjects.get(parent_id)
-            child_co = doc.CityObjects.get(child_id)
-            if parent_co is not None and hasattr(parent_co, "children"):
-                if child_id not in parent_co.children:
-                    parent_co.children.append(child_id)
-            if child_co is not None and hasattr(child_co, "parents"):
-                if parent_id not in child_co.parents:
-                    child_co.parents.append(parent_id)
+            parent_co = doc.city_objects.get(parent_id)
+            child_co = doc.city_objects.get(child_id)
+            if (
+                parent_co is not None
+                and hasattr(parent_co, "children")
+                and child_id not in parent_co.children
+            ):
+                parent_co.children.append(child_id)
+            if (
+                child_co is not None
+                and hasattr(child_co, "parents")
+                and parent_id not in child_co.parents
+            ):
+                child_co.parents.append(parent_id)

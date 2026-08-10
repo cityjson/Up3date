@@ -1,5 +1,7 @@
 import bpy
 
+from .blender_types import BlenderContext
+
 
 class Up3datePTgui(bpy.types.Panel):
     """Creates a Panel in the scene context of properties editor"""
@@ -10,7 +12,7 @@ class Up3datePTgui(bpy.types.Panel):
     bl_region_type = "WINDOW"
     bl_context = "scene"
 
-    def draw(self, context):
+    def draw(self, context: BlenderContext) -> None:
         layout = self.layout
 
         scene = context.scene

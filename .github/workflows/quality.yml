@@ -1,0 +1,95 @@
+name: Code quality
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: quality-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    name: Ruff and unit tests
+    runs-on: ubuntu-latest
+    continue-on-error: false
+
+    defaults:
+      run:
+        shell: bash --noprofile --norc -euo pipefail {0}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Install uv and Python
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+        with:
+          enable-cache: true
+          python-version: "3.13"
+
+      - name: Install dependencies
+        run: uv sync --locked --dev
+
+      - name: Check formatting
+        id: formatting
+        continue-on-error: true
+        run: uv run ruff format --check --diff .
+
+      - name: Lint, imports, naming, and annotations
+        id: linting
+        continue-on-error: true
+        run: uv run ruff check --output-format=github .
+
+      - name: Enforce city_object spelling
+        id: city_object_spelling
+        continue-on-error: true
+        run: |
+          if grep -RInE --include='*.py' '(^|[^[:alnum:]_])[a-z_]*cityobjects?[a-z_]*([^[:alnum:]_]|$)' addon.py core models tests __init__.py; then
+            echo 'Use city_object or city_objects in Python identifiers.'
+            exit 1
+          fi
+
+      - name: Type check
+        id: type_checking
+        continue-on-error: true
+        run: uv run mypy
+
+      - name: Run unit tests
+        id: unit_tests
+        continue-on-error: true
+        run: uv run pytest
+
+      - name: Report quality results
+        if: always()
+        env:
+          FORMATTING_RESULT: ${{ steps.formatting.outcome }}
+          LINTING_RESULT: ${{ steps.linting.outcome }}
+          SPELLING_RESULT: ${{ steps.city_object_spelling.outcome }}
+          TYPE_CHECKING_RESULT: ${{ steps.type_checking.outcome }}
+          UNIT_TESTS_RESULT: ${{ steps.unit_tests.outcome }}
+        run: |
+          {
+            echo '## Code quality results'
+            echo '| Check | Result |'
+            echo '| --- | --- |'
+            echo "| Formatting | ${FORMATTING_RESULT} |"
+            echo "| Linting | ${LINTING_RESULT} |"
+            echo "| city_object spelling | ${SPELLING_RESULT} |"
+            echo "| Type checking | ${TYPE_CHECKING_RESULT} |"
+            echo "| Unit tests | ${UNIT_TESTS_RESULT} |"
+          } >> "${GITHUB_STEP_SUMMARY}"
+
+          for result in \
+            "${FORMATTING_RESULT}" \
+            "${LINTING_RESULT}" \
+            "${SPELLING_RESULT}" \
+            "${TYPE_CHECKING_RESULT}" \
+            "${UNIT_TESTS_RESULT}"; do
+            if [[ "${result}" != 'success' ]]; then
+              exit 1
+            fi
+          done
