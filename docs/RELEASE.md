@@ -8,16 +8,32 @@ Up3date uses a manual, tag-driven release workflow. Updating the version does
 not publish a release by itself. A release is published only after a matching
 Git tag is pushed.
 
-## 1. Update the version
+## 1. Update and synchronize the version
 
-Update the `project.version` value in `pyproject.toml`:
+The release version is declared in three places. Update all three to the same
+semantic version before creating a release:
 
 ```toml
+# pyproject.toml
+[project]
+version = "0.1.1"
+
+# blender_manifest.toml
 version = "0.1.1"
 ```
 
-Use the next semantic version for the release. The version must use the
-`MAJOR.MINOR.PATCH` format, without a `v` prefix.
+Update the tuple in `__init__.py` to represent the same version:
+
+```python
+bl_info = {
+    "version": (0, 1, 1),
+}
+```
+
+Use the next semantic version for the release. The values in
+`pyproject.toml`, `blender_manifest.toml`, and `__init__.py` must match and use
+the `MAJOR.MINOR.PATCH` format without a `v` prefix. Run `uv lock` after
+changing `pyproject.toml` so `uv.lock` records the same project version.
 
 ## 2. Add the release notes
 
@@ -83,11 +99,25 @@ Pushing the tag starts the release workflow. It verifies that:
 
 - the tag uses the `MAJOR.MINOR.PATCH` format;
 - the tag matches `project.version` in `pyproject.toml`;
+- the versions in `pyproject.toml`, `blender_manifest.toml`, `bl_info`, and
+  `uv.lock` are identical;
 - the matching changelog section contains release notes; and
 - the tag points to a commit reachable from `main`.
 
-If all checks pass, GitHub Actions creates the GitHub release using the
-version-specific changelog notes.
+If all checks pass, GitHub Actions builds an installable
+`up3date-MAJOR.MINOR.PATCH.zip` and attaches it to the GitHub release. The ZIP
+contains only the add-on runtime files:
+
+- `blender_manifest.toml`;
+- `__init__.py` and `addon.py`;
+- the `core/` and `models/` packages; and
+- `LICENSE`.
+
+Tests, sample data, documentation, development configuration, scripts, and
+GitHub infrastructure are not included in this installable ZIP. GitHub also
+adds its standard **Source code** archives to every release automatically;
+those are repository snapshots and are separate from the installable add-on
+asset.
 
 ## Protected tags
 
@@ -106,6 +136,34 @@ tag.
   previous versions and always with formatting that can be rendered correctly 
   in a git/github annotated tag. Then create a new version tag only if that version 
   has not already been released.
-- If the tag already exists, the release helper stops. Do not delete or
-  force-update a protected release tag; investigate the existing GitHub
-  release instead.
+- If the tag already exists, the release helper stops. Check whether a GitHub
+  release was published. Keep published release tags immutable; otherwise,
+  follow the failed-tag recovery procedure below.
+
+### Recovering from a failed release tag
+
+If the release workflow rejects a tag before creating a GitHub release, an
+administrator may delete and recreate the tag after correcting the release
+metadata. The repository tag ruleset must grant that administrator **Always
+allow** bypass permission for tag deletion and creation. Administrator access
+alone does not necessarily bypass an active ruleset.
+
+Delete the failed tag from the remote and the local repository:
+
+```bash
+git push origin --delete 0.0.0
+git tag --delete 0.0.0
+```
+
+Replace `0.0.0` with the failed version. Then:
+
+1. Synchronize the version in `pyproject.toml`, `blender_manifest.toml`,
+   `bl_info`, and `uv.lock`.
+2. Add or correct the matching `CHANGELOG.md` section.
+3. Commit the correction and merge it into `main`.
+4. Update the local `main` branch and run `./scripts/release.sh` again.
+
+Only reuse a tag when the workflow failed before publishing the GitHub
+release. If the release was successfully published or the tag may already be
+in use, keep it immutable and prepare a new patch version such as `0.0.1`.
+Never force-update a release tag.

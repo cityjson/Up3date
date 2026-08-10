@@ -2,7 +2,7 @@
 
 All notable changes to Up3date are documented here.
 
-## [0.1.0]
+## [0.0.0]
 
 - Add CityJSON 2.0 document parsing and serialization.
 - Support City Objects, attributes, relationships, extensions, metadata,
