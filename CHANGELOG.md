@@ -4,14 +4,38 @@ All notable changes to Up3date are documented here.
 
 ## [0.0.0]
 
-- Add CityJSON 2.0 document parsing and serialization.
-- Support City Objects, attributes, relationships, extensions, metadata,
-  coordinate transforms, appearances, geometry templates, and geometry
+### Added
+
+- Add typed CityJSON 2.0.2 document models with `from_dict` and `to_dict`
+  serialization for City Objects, geometry primitives, semantic surfaces,
+  transforms, metadata, appearances, geometry templates, and geometry
   instances.
-- Support CityJSON geometry primitives and LoD values through the Python model
-  layer.
-- Import supported surface and solid geometries as editable Blender meshes with
-  semantic materials.
-- Preserve unsupported editable geometry and CityJSON document data for
-  round-trip export.
-- Add CityJSON import/export integration with Blender 5.2.
+- Support standard City Object types, extension City Objects, attributes,
+  geographical extents, members, and parent/child relationships.
+- Support `MultiPoint`, `MultiLineString`, `MultiSurface`,
+  `CompositeSurface`, `Solid`, `CompositeSolid`, and `MultiSolid` geometry,
+  including integer and decimal LoD values.
+- Import `MultiSurface`, `CompositeSurface`, and `Solid` geometries as editable
+  Blender meshes, with City Object data stored as custom properties and
+  semantic surfaces represented as Blender materials.
+- Export Blender meshes, City Object attributes, semantic surfaces,
+  relationships, metadata, CRS information, transforms, and deduplicated
+  vertices as a typed CityJSON document.
+- Preserve appearances, extensions, geometry templates, geometry instances,
+  unsupported geometry types, and their original CityJSON identifiers during
+  Blender import/export round trips.
+- Add public model exports for the supported CityJSON document, City Object,
+  geometry, and semantics types.
+
+### Changed
+
+- Update the add-on for Blender 5.2 and move Blender-dependent registration to
+  `addon.py`, leaving a lightweight package entry point.
+- Preserve original coordinate space when importing transformed datasets and
+  restore per-object world transformations correctly during export.
+- Add structural Blender API types and comprehensive annotations across the
+  add-on, core, and model layers.
+- Standardize Python identifiers and module names around `city_object` and
+  `city_objects`.
+- Adopt `uv` as the dependency and environment manager with a reproducible
+  `uv.lock` lockfile.
