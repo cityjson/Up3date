@@ -3,99 +3,220 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, Literal
 
-from models.cityobjects import ExtensionObject, _AbstractCityObject
+from .city_objects import ExtensionObject, _AbstractCityObject, city_object_from_dict
+from .geomprimitives import GeometryPrimitive, geom_primitive_from_dict
 
 
 @dataclass
 class Transform:
     """Scale and translate factors to convert integer coordinates back to real-world coordinates."""
-    scale: list[float]  # exactly 3 numbers: [x, y, z]
-    translate: list[float]  # exactly 3 numbers: [x, y, z]
+
+    scale: list[float]  # exactly 3 numbers: [sx, sy, sz]
+    translate: list[float]  # exactly 3 numbers: [tx, ty, tz]
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Transform:
+        return cls(scale=data["scale"], translate=data["translate"])
+
+    def to_dict(self) -> dict:
+        return {"scale": self.scale, "translate": self.translate}
 
 
 @dataclass
 class Metadata:
-    """Metadata regarding the spatial dataset (geographical extent, coordinate reference system, etc.)."""
-    geographicalExtent: list[float] | None = None  # exactly 6 numbers: [minx, miny, minz, maxx, maxy, maxz]
-    referenceSystem: str | dict[str, Any] | None = None  # CRS identifier or object
-    # Add other standard optional fields like datasetTitle, referenceDate if needed
-    attributes: dict[str, Any] = field(default_factory=dict)
+    """Metadata regarding the spatial dataset (spec §5).
+
+    The six named fields match ISO 19115.  Any other properties land in `extra`.
+    `referenceSystem` follows the OGC Name Type Specification URI pattern,
+    e.g. "https://www.opengis.net/def/crs/EPSG/0/7415".
+    """
+
+    geographical_extent: list[float] | None = (
+        None  # [minx, miny, minz, maxx, maxy, maxz]
+    )
+    identifier: str | None = None
+    point_of_contact: dict[str, Any] | None = None  # free-form per spec
+    reference_date: str | None = None  # ISO 8601 full-date, e.g. "1977-02-28"
+    reference_system: str | None = None  # OGC CRS URI
+    title: str | None = None
+    extra: dict[str, Any] = field(default_factory=dict)  # non-standard / future fields
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Metadata:
+        known = {
+            "geographicalExtent",
+            "identifier",
+            "pointOfContact",
+            "referenceDate",
+            "referenceSystem",
+            "title",
+        }
+        return cls(
+            geographical_extent=data.get("geographicalExtent"),
+            identifier=data.get("identifier"),
+            point_of_contact=data.get("pointOfContact"),
+            reference_date=data.get("referenceDate"),
+            reference_system=data.get("referenceSystem"),
+            title=data.get("title"),
+            extra={k: v for k, v in data.items() if k not in known},
+        )
+
+    def to_dict(self) -> dict:
+        d: dict[str, Any] = {}
+        if self.geographical_extent is not None:
+            d["geographicalExtent"] = self.geographical_extent
+        if self.identifier is not None:
+            d["identifier"] = self.identifier
+        if self.point_of_contact is not None:
+            d["pointOfContact"] = self.point_of_contact
+        if self.reference_date is not None:
+            d["referenceDate"] = self.reference_date
+        if self.reference_system is not None:
+            d["referenceSystem"] = self.reference_system
+        if self.title is not None:
+            d["title"] = self.title
+        d.update(self.extra)
+        return d
 
 
 @dataclass
 class Appearance:
-    """Materials and textures applied to the geometries."""
+    """Materials and textures applied to the geometries.
+
+    JSON key mapping (CityJSON uses hyphens, Python uses underscores):
+        "vertices-texture"       -> vertices_texture
+        "default-theme-texture"  -> default_theme_texture
+        "default-theme-material" -> default_theme_material
+    """
+
     materials: list[dict[str, Any]] = field(default_factory=list)
     textures: list[dict[str, Any]] = field(default_factory=list)
-    vertices_texture: list[list[float]] = field(default_factory=list)  # Handled as vertices_texture in pure Python
+    vertices_texture: list[list[float]] = field(default_factory=list)
+    default_theme_texture: str | None = None
+    default_theme_material: str | None = None
+
+    @classmethod
+    def from_dict(cls, data: dict) -> Appearance:
+        return cls(
+            materials=data.get("materials", []),
+            textures=data.get("textures", []),
+            vertices_texture=data.get("vertices-texture", []),
+            default_theme_texture=data.get("default-theme-texture"),
+            default_theme_material=data.get("default-theme-material"),
+        )
+
+    def to_dict(self) -> dict:
+        d: dict[str, Any] = {}
+        if self.materials:
+            d["materials"] = self.materials
+        if self.textures:
+            d["textures"] = self.textures
+        if self.vertices_texture:
+            d["vertices-texture"] = self.vertices_texture
+        if self.default_theme_texture is not None:
+            d["default-theme-texture"] = self.default_theme_texture
+        if self.default_theme_material is not None:
+            d["default-theme-material"] = self.default_theme_material
+        return d
 
 
 @dataclass
 class GeometryTemplates:
-    """Reusable geometry templates (templates array and their corresponding vertices)."""
-    templates: list[Any] = field(default_factory=list)  # list of Geometry objects used as templates
-    vertices: list[list[int]] = field(default_factory=list)
+    """Reusable geometry templates.
+
+    JSON key mapping:
+        "vertices-templates" -> vertices_templates
+    """
+
+    templates: list[GeometryPrimitive] = field(default_factory=list)
+    vertices_templates: list[list[float]] = field(
+        default_factory=list
+    )  # JSON: "vertices-templates"
+
+    @classmethod
+    def from_dict(cls, data: dict) -> GeometryTemplates:
+        templates = [geom_primitive_from_dict(t) for t in data.get("templates", [])]
+        return cls(
+            templates=templates,
+            vertices_templates=data.get("vertices-templates", []),
+        )
+
+    def to_dict(self) -> dict:
+        d: dict[str, Any] = {}
+        if self.templates:
+            d["templates"] = [t.to_dict() for t in self.templates]
+        if self.vertices_templates:
+            d["vertices-templates"] = self.vertices_templates
+        return d
 
 
 @dataclass
 class CityJSONDocument:
-    """The root object of a CityJSON 2.0 dataset."""
+    """The root object of a CityJSON 2.0 dataset.
+
+    JSON key mapping:
+        "geometry-templates" -> geometry_templates
+    """
+
     type: Literal["CityJSON"] = "CityJSON"
     version: Literal["2.0"] = "2.0"
-    transform: Transform | None = None  # technically optional, but practically essential for quantized datasets
+    transform: Transform | None = None
 
     # Maps unique object IDs to their respective CityObject dataclass
-    # Using a union of your abstract types or a generic alias
-    CityObjects: dict[str, _AbstractCityObject | ExtensionObject] = field(default_factory=dict)
+    city_objects: dict[str, _AbstractCityObject | ExtensionObject] = field(
+        default_factory=dict
+    )
 
-    # Flat list of quantized 3D coordinates: [[x1, y1, z1], [x2, y2, z2], ...]
-    vertices: list[list[int]] = field(default_factory=list)
+    # Flat list of quantized 3D integer coordinates: [[x1, y1, z1], ...]
+    vertices: list[list[int | float]] = field(default_factory=list)
 
     metadata: Metadata | None = None
     appearance: Appearance | None = None
     extensions: dict[str, dict[str, Any]] = field(default_factory=dict)
-    geometry_templates: GeometryTemplates | None = None
+    geometry_templates: GeometryTemplates | None = None  # JSON: "geometry-templates"
+
+    @classmethod
+    def from_dict(cls, data: dict) -> CityJSONDocument:
+        doc = cls(
+            type=data.get("type", "CityJSON"),
+            version=data.get("version", "2.0"),
+            vertices=data.get("vertices", []),
+            extensions=data.get("extensions", {}),
+        )
+        if "transform" in data:
+            doc.transform = Transform.from_dict(data["transform"])
+        if "metadata" in data:
+            doc.metadata = Metadata.from_dict(data["metadata"])
+        if "appearance" in data:
+            doc.appearance = Appearance.from_dict(data["appearance"])
+        if "geometry-templates" in data:
+            doc.geometry_templates = GeometryTemplates.from_dict(
+                data["geometry-templates"]
+            )
+        doc.city_objects = {
+            k: city_object_from_dict(v) for k, v in data.get("CityObjects", {}).items()
+        }
+        return doc
+
+    def to_dict(self) -> dict:
+        d: dict[str, Any] = {
+            "type": self.type,
+            "version": self.version,
+            "CityObjects": {k: v.to_dict() for k, v in self.city_objects.items()},
+            "vertices": self.vertices,
+        }
+        if self.transform is not None:
+            d["transform"] = self.transform.to_dict()
+        if self.metadata is not None:
+            d["metadata"] = self.metadata.to_dict()
+        if self.appearance is not None:
+            d["appearance"] = self.appearance.to_dict()
+        if self.geometry_templates is not None:
+            d["geometry-templates"] = self.geometry_templates.to_dict()
+        if self.extensions:
+            d["extensions"] = self.extensions
+        return d
 
 
-
-# A couple of schema details worth noting
-
-# version should be "2.0" even for the 2.0.2 specification.
-
-# vertices are integer coordinates in the stored file; the transform converts them to real-world floats.
-
-# CityObjects should be dict[str, CityObject], not dict[str, dict[str, Any]]—that's the whole benefit of the generated model.
-
-# This gives you a fully typed root object while staying faithful to the CityJSON 2.0.2 schema.
-
-
-# One thing I'd change before putting this into Up3date
-#
-# For the four JSON objects above, I'd use Pythonic field names internally, but explicitly map them to the CityJSON names when serializing:
-#
-# Python	CityJSON
-# vertices_texture	"vertices-texture"
-# default_theme_texture	"default-theme-texture"
-# default_theme_material	"default-theme-material"
-# vertices_templates	"vertices-templates"
-#
-# This is preferable to having Python attributes such as:
-#
-# appearance.vertices-texture
-#
-# which isn't valid Python.
-#
-# Also, GeometryTemplates.templates should not ultimately be list[object]. It should be:
-#
-# list[MultiPoint | MultiLineString | MultiSurface |
-#      CompositeSurface | Solid | CompositeSolid | MultiSolid]
-#
-# using the geometry dataclasses you already have. The specification says the templates array contains Geometry Objects.
-#
-# Similarly, the metadata geographicalExtent should represent exactly six values, and Transform.scale / translate exactly three values. The 2.0.2 spec explicitly requires those shapes.
-#
-# The appearance model above follows the six core metadata properties and the 2.0.2 Appearance/Material/Texture definitions.
-#
-# One further issue: pointOfContact.address is intentionally a free-form object in the CityJSON spec, so keeping that as dict[str, object] is appropriate rather than inventing an address schema.
-#
-# If we're going to make the Up3date model genuinely 2.0.2-correct, I'd next make GeometryTemplates fully typed against the existing geometry dataclasses and then build a proper CityJSON root dataclass around these.
+# Backwards-compatible alias used by core/objects.py
+CityJSON = CityJSONDocument

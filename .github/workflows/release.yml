@@ -1,0 +1,169 @@
+name: Create release
+
+on:
+  push:
+    tags:
+      - "*.*.*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create release
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash --noprofile --norc -euo pipefail {0}
+
+    steps:
+      - name: Check out repository history
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Read declared versions
+        id: versions
+        run: |
+          python - <<'PY' >> "${GITHUB_OUTPUT}"
+          import ast
+          import tomllib
+          from pathlib import Path
+
+          with Path("pyproject.toml").open("rb") as file:
+              project_version = tomllib.load(file)["project"]["version"]
+
+          with Path("blender_manifest.toml").open("rb") as file:
+              manifest_version = tomllib.load(file)["version"]
+
+          module = ast.parse(Path("__init__.py").read_text(encoding="utf-8"))
+          bl_info_node = next(
+              node
+              for node in module.body
+              if isinstance(node, ast.Assign)
+              and any(
+                  isinstance(target, ast.Name) and target.id == "bl_info"
+                  for target in node.targets
+              )
+          )
+          bl_info = ast.literal_eval(bl_info_node.value)
+          addon_version = ".".join(str(part) for part in bl_info["version"])
+
+          with Path("uv.lock").open("rb") as file:
+              lock_data = tomllib.load(file)
+          lock_version = next(
+              package["version"]
+              for package in lock_data["package"]
+              if package["name"] == "up3date"
+          )
+
+          print(f"project={project_version}")
+          print(f"manifest={manifest_version}")
+          print(f"addon={addon_version}")
+          print(f"lock={lock_version}")
+          PY
+
+      - name: Validate release tag
+        env:
+          PROJECT_VERSION: ${{ steps.versions.outputs.project }}
+          MANIFEST_VERSION: ${{ steps.versions.outputs.manifest }}
+          ADDON_VERSION: ${{ steps.versions.outputs.addon }}
+          LOCK_VERSION: ${{ steps.versions.outputs.lock }}
+        run: |
+          if [[ ! "${GITHUB_REF_NAME}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tags must use the 0.0.0 format without a prefix."
+            exit 1
+          fi
+          if [[ "${GITHUB_REF_NAME}" != "${PROJECT_VERSION}" ]]; then
+            echo "Release tag ${GITHUB_REF_NAME} does not match pyproject.toml version ${PROJECT_VERSION}."
+            exit 1
+          fi
+          if [[ "${MANIFEST_VERSION}" != "${PROJECT_VERSION}" ]]; then
+            echo "blender_manifest.toml version ${MANIFEST_VERSION} does not match pyproject.toml version ${PROJECT_VERSION}."
+            exit 1
+          fi
+          if [[ "${ADDON_VERSION}" != "${PROJECT_VERSION}" ]]; then
+            echo "bl_info version ${ADDON_VERSION} does not match pyproject.toml version ${PROJECT_VERSION}."
+            exit 1
+          fi
+          if [[ "${LOCK_VERSION}" != "${PROJECT_VERSION}" ]]; then
+            echo "uv.lock version ${LOCK_VERSION} does not match pyproject.toml version ${PROJECT_VERSION}."
+            exit 1
+          fi
+
+      - name: Read release notes
+        id: release_notes
+        env:
+          PROJECT_VERSION: ${{ steps.versions.outputs.project }}
+        run: |
+          notes_file="${RUNNER_TEMP}/up3date-release-notes.md"
+          awk -v version="${PROJECT_VERSION}" '
+            index($0, "## [" version "]") == 1 { in_section = 1; next }
+            in_section && /^## / { exit }
+            in_section { print }
+          ' CHANGELOG.md > "${notes_file}"
+
+          if [[ -z "$(tr -d '[:space:]' < "${notes_file}")" ]]; then
+            echo "No notes found for version ${PROJECT_VERSION} in CHANGELOG.md."
+            exit 1
+          fi
+
+          echo "notes_file=${notes_file}" >> "$GITHUB_OUTPUT"
+
+      - name: Verify tag is on main
+        run: |
+          git fetch --no-tags origin main:refs/remotes/origin/main
+          if ! git merge-base --is-ancestor "${GITHUB_SHA}" origin/main; then
+            echo "Tag ${GITHUB_REF_NAME} does not point to a commit on main."
+            exit 1
+          fi
+
+      - name: Build Blender add-on package
+        id: package
+        env:
+          PROJECT_VERSION: ${{ steps.versions.outputs.project }}
+        run: |
+          package_file="${RUNNER_TEMP}/up3date-${PROJECT_VERSION}.zip"
+
+          git archive \
+            --format=zip \
+            --output="${package_file}" \
+            "${GITHUB_SHA}" \
+            -- \
+            blender_manifest.toml \
+            __init__.py \
+            addon.py \
+            core \
+            models \
+            LICENSE
+
+          unzip -t "${package_file}"
+
+          if unzip -Z1 "${package_file}" | grep -Eq '(^|/)(tests|\.github|docs|scripts)/|(^|/)(pyproject\.toml|uv\.lock)$'; then
+            echo "The release package contains development or infrastructure files."
+            exit 1
+          fi
+
+          echo "package_file=${package_file}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_FILE: ${{ steps.package.outputs.package_file }}
+          PROJECT_VERSION: ${{ steps.versions.outputs.project }}
+          RELEASE_NOTES_FILE: ${{ steps.release_notes.outputs.notes_file }}
+        run: |
+          if gh release view "${PROJECT_VERSION}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "GitHub release ${PROJECT_VERSION} already exists; skipping."
+            exit 0
+          fi
+
+          gh release create \
+            "${PROJECT_VERSION}" \
+            "${PACKAGE_FILE}#Up3date Blender add-on" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --verify-tag \
+            --target "${GITHUB_SHA}" \
+            --title "${PROJECT_VERSION}" \
+            --notes-file "${RELEASE_NOTES_FILE}"

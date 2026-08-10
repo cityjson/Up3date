@@ -2,8 +2,7 @@ import bpy
 
 
 class Up3dateCityJSONfyProperties(bpy.types.PropertyGroup):
-    lod: bpy.props.IntProperty(name="LOD", default=2)
-    lod_version: bpy.props.IntProperty(name="LODSubversion", default=0)
+    lod: bpy.props.StringProperty(name="LOD", default="2")
     feature_type: bpy.props.StringProperty(
         name="feature_type",
         default="Building",
