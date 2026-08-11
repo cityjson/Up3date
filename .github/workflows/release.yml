@@ -161,7 +161,7 @@ jobs:
 
           gh release create \
             "${PROJECT_VERSION}" \
-            "${PACKAGE_FILE}#Up3date Blender add-on" \
+            "${PACKAGE_FILE}" \
             --repo "${GITHUB_REPOSITORY}" \
             --verify-tag \
             --target "${GITHUB_SHA}" \
