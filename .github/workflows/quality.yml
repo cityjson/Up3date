@@ -123,8 +123,17 @@ jobs:
       fail-fast: false
       matrix:
         include:
+          - blender_version: "5.0.1"
+            blender_series: "5.0"
+            python_version: "3.11"
+            blender_sha256: "8019580ee1b7262e505f4196a00237ccf743c88d205b38d34201510676e60b09"
+          - blender_version: "5.1.2"
+            blender_series: "5.1"
+            python_version: "3.13"
+            blender_sha256: "aaccb355f50183979b698bcce7467103a76261b5fa59f4972295842662a285fb"
           - blender_version: "5.2.0"
             blender_series: "5.2"
+            python_version: "3.13"
             blender_sha256: "96f6c181a30f4950607839dc84d42a354b250d8a0231b098b59b7bc69c351c48"
 
     defaults:
@@ -139,10 +148,10 @@ jobs:
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
         with:
           enable-cache: true
-          python-version: "3.13"
+          python-version: ${{ matrix.python_version }}
 
       - name: Install dependencies
-        run: uv sync --locked --dev
+        run: uv sync --locked --only-dev
 
       - name: Install Blender ${{ matrix.blender_version }}
         id: blender_setup
@@ -167,8 +176,8 @@ jobs:
         id: blender_integration
         continue-on-error: true
         env:
-          COVERAGE_FILE: .coverage.blender
-          PYTHONPATH: ${{ github.workspace }}/.venv/lib/python3.13/site-packages
+          COVERAGE_FILE: .coverage.blender-${{ matrix.blender_version }}
+          PYTHONPATH: ${{ github.workspace }}/.venv/lib/python${{ matrix.python_version }}/site-packages
         run: >-
           "${BLENDER_EXECUTABLE}"
           --background
@@ -182,7 +191,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: blender-coverage-${{ matrix.blender_version }}
-          path: .coverage.blender
+          path: .coverage.blender-${{ matrix.blender_version }}
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 1

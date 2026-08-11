@@ -1,7 +1,9 @@
 # Development
 
-Up3date uses Python 3.13 and Blender 5.2's Python API. Install the project
-dependencies with `uv`:
+Up3date supports Python 3.11 and newer and Blender 5.0+'s Python API. Blender
+bundles its own Python runtime, which can vary between Blender releases. Check
+your Blender version and its bundled Python version before setting up the
+development environment. Install the project dependencies with `uv`:
 
 ```text
 uv sync --dev

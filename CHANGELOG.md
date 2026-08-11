@@ -2,6 +2,13 @@
 
 All notable changes to Up3date are documented here.
 
+## [Unreleased]
+
+### Changed
+
+- Expand supported Blender versions to 5.0 and newer, with headless
+  integration coverage for Blender 5.0.1, 5.1.2, and 5.2.0.
+
 ## [0.0.0]
 
 ### Added

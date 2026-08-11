@@ -5,7 +5,7 @@ import sys
 import time
 from collections.abc import Iterable, Sequence
 from datetime import UTC, datetime
-from typing import Any, Protocol, cast
+from typing import Any, Protocol, TypeAlias, cast
 
 import bpy
 import idprop
@@ -68,7 +68,7 @@ MaterialFactory = (
     BasicMaterialFactory | ReuseMaterialFactory | CityObjectTypeMaterialFactory
 )
 
-type GeometryModel = GeometryPrimitive | GeometryInstance
+GeometryModel: TypeAlias = GeometryPrimitive | GeometryInstance
 
 
 class CityJSONParser:
