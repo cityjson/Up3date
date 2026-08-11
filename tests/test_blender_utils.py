@@ -5,9 +5,9 @@ from types import SimpleNamespace
 import bpy
 import pytest
 
-from Up3date.core import utils
+from Up3date.blender import cityjson_utils, scene
 from Up3date.models.city_objects import GenericCityObject
-from Up3date.models.cityjson import CityJSONDocument
+from Up3date.models.cityjson import CityJSONDocument, Transform
 from Up3date.models.geomprimitives import GeometrySemantics, MultiSurface
 
 
@@ -36,10 +36,10 @@ def blender_state():
 
 
 def test_clean_list_and_assign_properties():
-    assert utils.clean_list([[[1, 2]]]) == [1, 2]
+    assert cityjson_utils.clean_list([[[1, 2]]]) == [1, 2]
 
     target = PropertyBag()
-    result = utils.assign_properties(
+    result = scene.assign_properties(
         target,
         {
             "type": "Building",
@@ -58,9 +58,9 @@ def test_clean_list_and_assign_properties():
 
 
 def test_blender_safe_name_preserves_cityjson_identifiers_without_numeric_suffixes():
-    assert utils.blender_safe_name("building-1") == "building-1"
+    assert scene.blender_safe_name("building-1") == "building-1"
     assert (
-        utils.blender_safe_name("NL.IMBAG.Pand.0503100000000010")
+        scene.blender_safe_name("NL.IMBAG.Pand.0503100000000010")
         == "NL.IMBAG.Pand_0503100000000010"
     )
 
@@ -70,7 +70,7 @@ def test_remove_scene_objects_clears_world_objects_and_collections():
     bpy.data.objects = RemovableList([object(), object()])
     bpy.data.collections = RemovableList([object(), object()])
 
-    utils.remove_scene_objects()
+    scene.remove_scene_objects()
 
     assert bpy.context.scene.world == {}
     assert bpy.data.objects == []
@@ -80,12 +80,14 @@ def test_remove_scene_objects_clears_world_objects_and_collections():
 def test_coordinate_translation_round_trip():
     vertices = [(10, 20, 30), (15, 18, 40)]
 
-    translated, offx, offy, offz = utils.coord_translate_axis_origin(vertices)
+    translated, offx, offy, offz = cityjson_utils.coord_translate_axis_origin(vertices)
 
     assert translated == ((0, 2, 0), (5, 0, 10))
     assert (offx, offy, offz) == (10, 18, 30)
-    assert utils.original_coordinates(translated, offx, offy, offz) == tuple(vertices)
-    assert utils.coord_translate_by_offset(vertices, 5, 10, 15)[0] == (
+    assert cityjson_utils.original_coordinates(translated, offx, offy, offz) == tuple(
+        vertices
+    )
+    assert cityjson_utils.coord_translate_by_offset(vertices, 5, 10, 15)[0] == (
         (5, 10, 15),
         (10, 8, 25),
     )
@@ -94,18 +96,20 @@ def test_coordinate_translation_round_trip():
 def test_clean_buffer_and_geometry_names():
     vertices = ["unused", "a", "b", "c"]
 
-    assert utils.clean_buffer(vertices, [(1, 3), (2,)]) == (
+    assert cityjson_utils.clean_buffer(vertices, [(1, 3), (2,)]) == (
         ["a", "c", "b"],
         [(0, 1), (2,)],
     )
     assert (
-        utils.get_geometry_name(
+        cityjson_utils.get_geometry_name(
             "building-1", SimpleNamespace(type="MultiSurface", lod="2"), 3
         )
         == "3: [LoD2] building-1"
     )
     assert (
-        utils.get_geometry_name("tree-1", SimpleNamespace(type="GeometryInstance"), 0)
+        cityjson_utils.get_geometry_name(
+            "tree-1", SimpleNamespace(type="GeometryInstance"), 0
+        )
         == "0: [GeometryInstance] tree-1"
     )
 
@@ -123,7 +127,7 @@ def test_bbox_combines_objects_and_restores_axis_translation():
         SimpleNamespace(bound_box=[(-5, 0, 1), (1, 8, 9)]),
     ]
 
-    assert utils.bbox(objects) == ([5, 18, 27], [12, 28, 39])
+    assert scene.bbox(objects) == ([5, 18, 27], [12, 28, 39])
 
 
 @pytest.mark.parametrize(
@@ -160,7 +164,7 @@ def test_write_vertices_to_cityjson(world, expected):
     city_object = SimpleNamespace(matrix_world=IdentityMatrix())
     doc = CityJSONDocument()
 
-    utils.write_vertices_to_cityjson(city_object, (1, 2, 3), doc)
+    cityjson_utils.write_vertices_to_cityjson(city_object, (1, 2, 3), doc)
 
     assert doc.vertices == [expected]
 
@@ -172,7 +176,7 @@ def test_remove_vertex_duplicates_updates_geometry_indices():
         vertices=[[0, 0, 0], [1, 0, 0], [1.0004, 0, 0], [0, 0, 0]],
     )
 
-    removed = utils.remove_vertex_duplicates(doc, precision=3)
+    removed = cityjson_utils.remove_vertex_duplicates(doc, precision=3)
 
     assert removed == 2
     assert doc.vertices == [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0]]
@@ -182,12 +186,12 @@ def test_remove_vertex_duplicates_updates_geometry_indices():
 def test_remove_vertex_duplicates_uses_integer_precision_for_transformed_data():
     geometry = MultiSurface(lod="1", boundaries=[[[0, 1, 2]]])
     doc = CityJSONDocument(
-        transform=utils.Transform(scale=[0.1, 0.1, 0.1], translate=[0, 0, 0]),
+        transform=Transform(scale=[0.1, 0.1, 0.1], translate=[0, 0, 0]),
         city_objects={"building": GenericCityObject(geometry=[geometry])},
         vertices=[[0, 0, 0], [0.4, 0, 0], [1, 0, 0]],
     )
 
-    removed = utils.remove_vertex_duplicates(doc, precision=8)
+    removed = cityjson_utils.remove_vertex_duplicates(doc, precision=8)
 
     assert removed == 1
     assert doc.vertices == [[0, 0, 0], [1, 0, 0]]
@@ -208,7 +212,7 @@ def test_export_transformation_parameters():
     )
     doc = CityJSONDocument()
 
-    utils.export_transformation_parameters(doc)
+    cityjson_utils.export_transformation_parameters(doc)
 
     assert doc.transform is not None
     assert doc.transform.scale == [0.1, 0.2, 0.3]
@@ -228,8 +232,8 @@ def test_semantic_surfaces_are_stored_and_linked():
     invalid.name = "Invalid"
     city_object = SimpleNamespace(data=SimpleNamespace(materials=[wall, None, invalid]))
 
-    lookup = utils.store_semantic_surfaces(doc, city_object, 0, "building")
-    utils.link_face_semantic_surface(
+    lookup = cityjson_utils.store_semantic_surfaces(doc, city_object, 0, "building")
+    cityjson_utils.link_face_semantic_surface(
         doc,
         city_object,
         0,
@@ -237,7 +241,7 @@ def test_semantic_surfaces_are_stored_and_linked():
         lookup,
         SimpleNamespace(material_index=0),
     )
-    utils.link_face_semantic_surface(
+    cityjson_utils.link_face_semantic_surface(
         doc,
         city_object,
         0,
@@ -255,9 +259,11 @@ def test_semantic_helpers_ignore_objects_without_materials():
     city_object = SimpleNamespace(data=SimpleNamespace(materials=[]))
     doc = CityJSONDocument()
 
-    assert utils.store_semantic_surfaces(doc, city_object, 0, "missing") is None
     assert (
-        utils.link_face_semantic_surface(
+        cityjson_utils.store_semantic_surfaces(doc, city_object, 0, "missing") is None
+    )
+    assert (
+        cityjson_utils.link_face_semantic_surface(
             doc, city_object, 0, "missing", None, SimpleNamespace(material_index=0)
         )
         is None
@@ -271,7 +277,7 @@ def test_export_metadata_uses_world_crs_and_scene_bounds():
     ]
     doc = CityJSONDocument()
 
-    utils.export_metadata(doc)
+    cityjson_utils.export_metadata(doc)
 
     assert doc.metadata is not None
     assert doc.metadata.reference_system == "https://example.test/crs"
@@ -290,8 +296,8 @@ def test_export_parent_child_avoids_duplicates():
     child_model = GenericCityObject()
     doc = CityJSONDocument(city_objects={"parent": parent_model, "child": child_model})
 
-    utils.export_parent_child(doc)
-    utils.export_parent_child(doc)
+    cityjson_utils.export_parent_child(doc)
+    cityjson_utils.export_parent_child(doc)
 
     assert parent_model.children == ["child"]
     assert child_model.parents == ["parent"]

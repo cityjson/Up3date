@@ -5,9 +5,10 @@ from bpy.props import BoolProperty, EnumProperty, IntProperty, StringProperty
 from bpy.types import Operator
 from bpy_extras.io_utils import ExportHelper, ImportHelper
 
-from .core import operator, prop, ui
-from .core.blender_types import BlenderContext, Menu
-from .core.objects import CityJSONExporter, CityJSONParser
+from .blender import operators, properties, ui
+from .blender.blender_types import BlenderContext, Menu
+from .blender.exporter import CityJSONExporter
+from .blender.importer import CityJSONImporter
 
 
 class ImportCityJSON(Operator, ImportHelper):
@@ -57,7 +58,7 @@ class ImportCityJSON(Operator, ImportHelper):
     def execute(self, context: BlenderContext) -> set[str]:
         """Executes the import process"""
 
-        parser = CityJSONParser(
+        parser = CityJSONImporter(
             self.filepath,
             material_type=self.material_type,
             reuse_materials=self.reuse_materials,
@@ -126,8 +127,8 @@ class ExportCityJSON(Operator, ExportHelper):
 classes = (
     ImportCityJSON,
     ExportCityJSON,
-    prop.Up3dateCityJSONfyProperties,
-    operator.Up3dateCityJsonfy,
+    properties.Up3dateCityJSONfyProperties,
+    operators.PrepareCityJSONObjectsOperator,
     ui.Up3datePTgui,
 )
 
@@ -148,7 +149,7 @@ def register() -> None:
     for cls in classes:
         bpy.utils.register_class(cls)
     bpy.types.Scene.cityjsonfy_properties = bpy.props.PointerProperty(
-        type=prop.Up3dateCityJSONfyProperties
+        type=properties.Up3dateCityJSONfyProperties
     )
     bpy.types.TOPBAR_MT_file_import.append(menu_func_import)
     bpy.types.TOPBAR_MT_file_export.append(menu_func_export)

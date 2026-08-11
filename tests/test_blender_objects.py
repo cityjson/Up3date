@@ -7,8 +7,8 @@ import bpy
 import idprop
 import pytest
 
-from Up3date.core import objects
-from Up3date.core.material import (
+from Up3date.blender import exporter, importer
+from Up3date.blender.material import (
     BasicMaterialFactory,
     CityObjectTypeMaterialFactory,
     ReuseMaterialFactory,
@@ -39,13 +39,13 @@ def blender_state():
     ],
 )
 def test_parser_selects_material_factory(material_type, reuse, expected_factory):
-    parser = objects.CityJSONParser("city.json", material_type, reuse)
+    parser = importer.CityJSONImporter("city.json", material_type, reuse)
 
     assert isinstance(parser.material_factory, expected_factory)
 
 
 def test_prepare_vertices_translates_untransformed_document_to_origin():
-    parser = objects.CityJSONParser("city.json", "CITY_OBJECTS")
+    parser = importer.CityJSONImporter("city.json", "CITY_OBJECTS")
     parser.document = CityJSONDocument(vertices=[[5, 4, 3], [8, 10, 12]])
 
     parser.prepare_vertices()
@@ -59,7 +59,7 @@ def test_prepare_vertices_translates_untransformed_document_to_origin():
 
 
 def test_prepare_vertices_applies_cityjson_transform():
-    parser = objects.CityJSONParser("city.json", "CITY_OBJECTS")
+    parser = importer.CityJSONImporter("city.json", "CITY_OBJECTS")
     parser.document = CityJSONDocument(
         transform=Transform(scale=[2, 3, 4], translate=[10, 20, 30]),
         vertices=[[1, 2, 3], [2, 4, 5]],
@@ -81,7 +81,7 @@ def test_prepare_vertices_reuses_existing_axis_translation():
             "Axis_Origin_Z_translation": -30,
         }
     )
-    parser = objects.CityJSONParser("city.json", "CITY_OBJECTS")
+    parser = importer.CityJSONImporter("city.json", "CITY_OBJECTS")
     parser.document = CityJSONDocument(vertices=[[12, 23, 34]])
 
     parser.prepare_vertices()
@@ -90,7 +90,7 @@ def test_prepare_vertices_reuses_existing_axis_translation():
 
 
 def test_prepare_vertices_requires_loaded_document():
-    parser = objects.CityJSONParser("city.json", "CITY_OBJECTS")
+    parser = importer.CityJSONImporter("city.json", "CITY_OBJECTS")
 
     with pytest.raises(RuntimeError, match="must be loaded"):
         parser.prepare_vertices()
@@ -103,7 +103,7 @@ def test_load_data_deserializes_cityjson(tmp_path):
             {"type": "CityJSON", "version": "2.0", "CityObjects": {}, "vertices": []}
         )
     )
-    parser = objects.CityJSONParser(str(input_path), "CITY_OBJECTS")
+    parser = importer.CityJSONImporter(str(input_path), "CITY_OBJECTS")
 
     parser.load_data()
 
@@ -113,7 +113,7 @@ def test_load_data_deserializes_cityjson(tmp_path):
 
 
 def test_parse_geometry_builds_mesh_and_properties(monkeypatch):
-    parser = objects.CityJSONParser("city.json", "CITY_OBJECTS")
+    parser = importer.CityJSONImporter("city.json", "CITY_OBJECTS")
     parser.vertices = [(0, 0, 0), (1, 0, 0), (0, 1, 0)]
     parser.material_factory = SimpleNamespace(
         get_materials=lambda **_kwargs: (["material"], [0])
@@ -131,7 +131,7 @@ def test_parse_geometry_builds_mesh_and_properties(monkeypatch):
         )
         return created
 
-    monkeypatch.setattr(objects, "create_mesh_object", create_mesh_object)
+    monkeypatch.setattr(importer, "create_mesh_object", create_mesh_object)
     geometry = MultiSurface(lod="2", boundaries=[[[0, 1, 2]]])
 
     result = parser.parse_geometry(
@@ -161,7 +161,7 @@ def test_exporter_creates_typed_city_object_from_custom_properties():
     )
     doc = CityJSONDocument()
 
-    objects.CityJSONExporter.get_custom_properties(city_object, doc, "building-1")
+    exporter.CityJSONExporter.get_custom_properties(city_object, doc, "building-1")
 
     result = doc.city_objects["building-1"]
     assert isinstance(result, Building)
@@ -180,7 +180,7 @@ def test_exporter_preserves_existing_geometry_and_relationships():
         geographicalExtent=[0, 0, 0, 1, 1, 1],
     )
 
-    objects.CityJSONExporter.get_custom_properties(city_object, doc, "building-1")
+    exporter.CityJSONExporter.get_custom_properties(city_object, doc, "building-1")
 
     result = doc.city_objects["building-1"]
     assert isinstance(result, Building)
@@ -194,8 +194,10 @@ def test_create_mesh_structure_adds_geometry_and_semantics():
     city_object.data.materials = ["wall"]
     doc = CityJSONDocument()
 
-    city_object_id, vertices, polygons = objects.CityJSONExporter.create_mesh_structure(
-        city_object, "0: [LoD1] building-1", doc
+    city_object_id, vertices, polygons = (
+        exporter.CityJSONExporter.create_mesh_structure(
+            city_object, "0: [LoD1] building-1", doc
+        )
     )
 
     assert city_object_id == "building-1"
@@ -218,7 +220,7 @@ def test_create_mesh_structure_rejects_invalid_properties(properties):
     city_object = FakeBlenderObject(name="invalid", **properties)
 
     with pytest.raises(SystemExit):
-        objects.CityJSONExporter.create_mesh_structure(
+        exporter.CityJSONExporter.create_mesh_structure(
             city_object, "0: [LoD1] building-1", CityJSONDocument()
         )
 
@@ -234,19 +236,19 @@ def test_export_geometry_and_semantics_writes_multi_surface(monkeypatch):
     faces = [SimpleNamespace(index=0, vertices=[0, 1], material_index=0)]
     linked_faces = []
 
-    monkeypatch.setattr(objects, "store_semantic_surfaces", lambda *_args: {})
+    monkeypatch.setattr(exporter, "store_semantic_surfaces", lambda *_args: {})
     monkeypatch.setattr(
-        objects,
+        exporter,
         "write_vertices_to_cityjson",
         lambda _obj, vertex, target: target.vertices.append(list(vertex)),
     )
     monkeypatch.setattr(
-        objects,
+        exporter,
         "link_face_semantic_surface",
         lambda *_args: linked_faces.append(_args[-1]),
     )
 
-    next_index = objects.CityJSONExporter.export_geometry_and_semantics(
+    next_index = exporter.CityJSONExporter.export_geometry_and_semantics(
         city_object, doc, "building-1", faces, vertices, {}, 0
     )
 
@@ -257,8 +259,8 @@ def test_export_geometry_and_semantics_writes_multi_surface(monkeypatch):
 
 
 def test_initialize_document_returns_new_documents():
-    first = objects.CityJSONExporter.initialize_document()
-    second = objects.CityJSONExporter.initialize_document()
+    first = exporter.CityJSONExporter.initialize_document()
+    second = exporter.CityJSONExporter.initialize_document()
 
     assert isinstance(first, CityJSONDocument)
     assert first is not second

@@ -1,11 +1,11 @@
-"""Unit tests for core material factories without a Blender process."""
+"""Unit tests for Blender material factories without a Blender process."""
 
 from types import SimpleNamespace
 
 import bpy
 import pytest
 
-from Up3date.core.material import (
+from Up3date.blender.material import (
     BasicMaterialFactory,
     CityObjectTypeMaterialFactory,
     ReuseMaterialFactory,

@@ -218,5 +218,5 @@ class CityJSONDocument:
         return d
 
 
-# Backwards-compatible alias used by core/objects.py
+# Short alias for the complete CityJSON document model.
 CityJSON = CityJSONDocument

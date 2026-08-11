@@ -3,7 +3,7 @@ import bpy
 from .blender_types import BlenderContext
 
 
-class Up3dateCityJsonfy(bpy.types.Operator):
+class PrepareCityJSONObjectsOperator(bpy.types.Operator):
     bl_idname = "cityjson.cityjsonfy"
     bl_label = "Convert to cityjson"
     bl_context = "scene"
