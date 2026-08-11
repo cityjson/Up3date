@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import dataclasses
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, TypeAlias
 
 from .geomprimitives import (
     CompositeSolid,
@@ -25,12 +25,12 @@ from .geomprimitives import (
 from .geomtemplates import GeometryInstance
 
 # ---------------------------------------------------------------------------
-# PEP 695 Type Aliases (Python 3.12+)
+# Type aliases
 # ---------------------------------------------------------------------------
 
-type GeomSurfaceOrSolid = MultiSurface | CompositeSurface | Solid | CompositeSolid
+GeomSurfaceOrSolid: TypeAlias = MultiSurface | CompositeSurface | Solid | CompositeSolid
 
-type GeomAnyPrimitiveOrInstance = (
+GeomAnyPrimitiveOrInstance: TypeAlias = (
     MultiPoint
     | MultiLineString
     | MultiSurface
@@ -41,19 +41,19 @@ type GeomAnyPrimitiveOrInstance = (
     | GeometryInstance
 )
 
-type GeomTransportation = MultiLineString | MultiSurface | CompositeSurface
+GeomTransportation: TypeAlias = MultiLineString | MultiSurface | CompositeSurface
 
-type GeomWaterBody = (
+GeomWaterBody: TypeAlias = (
     MultiLineString | MultiSurface | CompositeSurface | Solid | CompositeSolid
 )
 
-type GeomPlantCover = (
+GeomPlantCover: TypeAlias = (
     MultiSurface | CompositeSurface | Solid | CompositeSolid | MultiSolid
 )
 
-type GeomLandUse = MultiSurface | CompositeSurface
+GeomLandUse: TypeAlias = MultiSurface | CompositeSurface
 
-type GeomCityObjectGroup = (
+GeomCityObjectGroup: TypeAlias = (
     MultiPoint
     | MultiLineString
     | MultiSurface
@@ -63,7 +63,7 @@ type GeomCityObjectGroup = (
     | MultiSolid
 )
 
-type GeomGeneric = (
+GeomGeneric: TypeAlias = (
     MultiPoint
     | MultiLineString
     | MultiSurface

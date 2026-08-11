@@ -12,7 +12,7 @@ for the MSc thesis [An integrative workflow for 3D city model versioning](http:/
 
 ## Requirements
 
-- Blender 5.2 or newer
+- Blender 5.0 or newer
 
 The add-on follows the CityJSON schemas and document structure described in
 the linked specification.

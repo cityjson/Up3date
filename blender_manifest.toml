@@ -1,13 +1,13 @@
 schema_version = "1.0.0"
 
 id = "up3date"
-version = "0.0.0"
+version = "0.1.0"
 name = "Up3date"
 tagline = "Visualize, edit and export 3D City Models encoded in CityJSON format"
 maintainer = "Konstantinos Mastorakis"
 type = "add-on"
 
-blender_version_min = "5.2.0"
+blender_version_min = "5.0.0"
 
 license = [
   "SPDX:GPL-3.0-or-later",

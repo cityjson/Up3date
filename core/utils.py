@@ -5,7 +5,7 @@ processing of CityJSON files
 """
 
 from collections.abc import Sequence
-from typing import Any, Protocol, cast
+from typing import Any, Protocol, TypeVar, cast
 
 import bpy
 
@@ -23,6 +23,9 @@ from .blender_types import (
 
 class GeometryOwner(Protocol):
     geometry: list[Any]
+
+
+PropertyOwner = TypeVar("PropertyOwner", bound=CustomPropertyOwner)
 
 
 CITYJSON_ID_PROPERTY = "cityjson_id"
@@ -71,7 +74,7 @@ def clean_list(values: list[Any]) -> list[Any]:
     return values
 
 
-def assign_properties[PropertyOwner: CustomPropertyOwner](
+def assign_properties(
     obj: PropertyOwner, props: dict[str, Any], prefix: list[str] | None = None
 ) -> PropertyOwner:
     """Assigns the custom properties to obj based on the props"""
