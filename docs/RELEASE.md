@@ -110,7 +110,7 @@ contains only the add-on runtime files:
 
 - `blender_manifest.toml`;
 - `__init__.py` and `addon.py`;
-- the `core/` and `models/` packages; and
+- the `blender/` and `models/` packages; and
 - `LICENSE`.
 
 Tests, sample data, documentation, development configuration, scripts, and

@@ -89,9 +89,9 @@ model is not visible, select a mesh object in the Outliner and use `View >
 Frame Selected` (or press `Home`). Keep the viewport in `Object Mode` while
 starting an import or export.
 
-![Accessing the attributes of objects](images/attributes.png)
-![Accessing the semantics of LoD2 (or higher) geometries](images/semantics.png)
-![The translation parameters with the CRS information](images/world_properties.png)
+![Accessing the attributes of objects](docs/images/attributes.png)
+![Accessing the semantics of LoD2 (or higher) geometries](docs/images/semantics.png)
+![The translation parameters with the CRS information](docs/images/world_properties.png)
 
 City Object attributes are available under an object's `Object Properties >
 Custom Properties`. Semantic surface properties are available on the material
@@ -123,9 +123,9 @@ option is enabled by default; **Precision** controls the decimal precision
 used when comparing untransformed vertices. Imported CityJSON transforms are
 preserved and used when coordinates are written back.
 
-![Adding a new Mesh object with its necessary custom properties](images/new_object_mesh.png)
-![Adding the parent Empty object with optional custom properties](images/new_object_empty.png)
-![Adding semantic information to a geometry surface](images/semantic_property.png)
+![Adding a new Mesh object with its necessary custom properties](docs/images/new_object_mesh.png)
+![Adding the parent Empty object with optional custom properties](docs/images/new_object_empty.png)
+![Adding semantic information to a geometry surface](docs/images/semantic_property.png)
 
 ## Development
 

@@ -10,7 +10,8 @@ import bpy
 
 from ..models.geomprimitives import GeometryPrimitive, Semantics
 from .blender_types import BlenderMaterial
-from .utils import assign_properties, clean_list
+from .cityjson_utils import clean_list
+from .scene import assign_properties
 
 Color = tuple[float, float, float, float]
 

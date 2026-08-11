@@ -29,8 +29,13 @@ if coverage_file := os.environ.get("COVERAGE_FILE"):
 
 import Up3date
 from Up3date import addon
-from Up3date.core.objects import CityJSONExporter, CityJSONParser
-from Up3date.core.utils import create_mesh_object, get_collection, remove_scene_objects
+from Up3date.blender.exporter import CityJSONExporter
+from Up3date.blender.importer import CityJSONImporter
+from Up3date.blender.scene import (
+    create_mesh_object,
+    get_collection,
+    remove_scene_objects,
+)
 from Up3date.models.cityjson import CityJSONDocument
 
 
@@ -188,7 +193,7 @@ class BlenderIntegrationTests(unittest.TestCase):
                     for city_object in source["CityObjects"].values()
                 )
 
-                import_result = CityJSONParser(
+                import_result = CityJSONImporter(
                     str(input_path),
                     material_type="SURFACES",
                     reuse_materials=True,
@@ -258,7 +263,7 @@ class BlenderIntegrationTests(unittest.TestCase):
             output_path = Path(temp_dir) / "solid-output.city.json"
             input_path.write_text(json.dumps(cityjson), encoding="utf-8")
 
-            CityJSONParser(
+            CityJSONImporter(
                 str(input_path),
                 material_type="SURFACES",
                 reuse_materials=False,
