@@ -1,6 +1,6 @@
 [project]
 name = "up3date"
-version = "0.0.0"
+version = "0.1.0"
 description = "Blender add-on for importing, editing, and exporting CityJSON encoded 3D city models"
 readme = "README.md"
 requires-python = ">=3.11"

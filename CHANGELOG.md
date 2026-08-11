@@ -4,10 +4,15 @@ All notable changes to Up3date are documented here.
 
 ## [Unreleased]
 
+## [0.1.0]
+
 ### Changed
 
-- Expand supported Blender versions to 5.0 and newer, with headless
-  integration coverage for Blender 5.0.1, 5.1.2, and 5.2.0.
+- Expand support to Blender 5.0 and newer by making Up3date compatible with
+  its Python 3.11 runtime and testing Blender 5.0.1, 5.1.2, and 5.2.0 with
+  matching Python environments in the headless integration pipeline.
+- Publish the installable release asset using its `up3date-<version>.zip`
+  filename without an additional display label.
 
 ## [0.0.0]
 
