@@ -4,6 +4,12 @@ All notable changes to Up3date are documented here.
 
 ## [Unreleased]
 
+## [0.1.1]
+
+### Fixed
+
+- Bumps urllib to patch known vulnerabilities
+
 ## [0.1.0]
 
 ### Changed

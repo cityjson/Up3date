@@ -131,10 +131,10 @@ jobs:
             blender_series: "5.1"
             python_version: "3.13"
             blender_sha256: "aaccb355f50183979b698bcce7467103a76261b5fa59f4972295842662a285fb"
-          - blender_version: "5.2.0"
+          - blender_version: "5.2.3"
             blender_series: "5.2"
             python_version: "3.13"
-            blender_sha256: "96f6c181a30f4950607839dc84d42a354b250d8a0231b098b59b7bc69c351c48"
+            blender_sha256: "78486c018b4443efe5e75ab54c290ed8c15abafd249b862c2c9ce2530a918eec"
 
     defaults:
       run:
