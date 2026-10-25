@@ -134,7 +134,7 @@ jobs:
             blender_manifest.toml \
             __init__.py \
             addon.py \
-            core \
+            blender \
             models \
             LICENSE
 
